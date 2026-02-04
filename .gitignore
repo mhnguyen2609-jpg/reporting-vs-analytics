@@ -144,3 +144,8 @@ cython_debug/
 test_output*.txt
 excel_check.txt
 Skills.rar
+
+# Google Drive Credentials
+credentials.json
+token.pickle
+client_secret.json
