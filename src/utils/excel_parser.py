@@ -1,14 +1,22 @@
 import pandas as pd
 import os
-from typing import Optional, Dict, Tuple
+import io
+from typing import Optional, Dict, Tuple, Union, Any
 
-def find_header_row(file_path: str, max_rows: int = 20) -> int:
+def find_header_row(file_input: Union[str, io.BytesIO], max_rows: int = 20) -> int:
     """
     Finds the row number containing the actual header by looking for key columns.
     Returns the 0-indexed row number, or 0 if not found.
     """
+    # Reset stream if bytes
+    if hasattr(file_input, 'seek'):
+        file_input.seek(0)
+
     # Read first N rows without header
-    df_raw = pd.read_excel(file_path, header=None, nrows=max_rows)
+    try:
+        df_raw = pd.read_excel(file_input, header=None, nrows=max_rows)
+    except:
+        return 0
     
     # Keywords that indicate a header row
     header_keywords = ['số lượng', 'tên hàng', 'mã sp', 'mã hiệu', 'stt', 'khối lượng']
@@ -53,13 +61,17 @@ def normalize_columns(columns: pd.Index) -> Dict[str, str]:
     return mapping
 
 
-def read_cell_c8(file_path: str) -> str:
+def read_cell_c8(file_input: Union[str, io.BytesIO]) -> str:
     """
     Reads cell C8 from Excel file (creation date / ngày lập danh sách).
     C8 = Row 8 (1-indexed) = Row 7 (0-indexed), Column C = Column 2 (0-indexed).
     """
     try:
-        df_raw = pd.read_excel(file_path, header=None, nrows=10)
+        # Reset stream if bytes
+        if hasattr(file_input, 'seek'):
+            file_input.seek(0)
+            
+        df_raw = pd.read_excel(file_input, header=None, nrows=10)
         if df_raw.shape[0] > 7 and df_raw.shape[1] > 2:
             value = df_raw.iloc[7, 2]  # Row 8, Col C
             if pd.notna(value):
@@ -72,24 +84,37 @@ def read_cell_c8(file_path: str) -> str:
     return ''
 
 
-def read_excel_data(file_path: str, source_type: str) -> Optional[pd.DataFrame]:
+def read_excel_data(file_input: Union[str, bytes], source_type: str) -> Optional[pd.DataFrame]:
     """
     Reads an Excel file and prepares it for calculation.
     Automatically detects header row.
     
     Args:
-        file_path: Absolute path to the file.
+        file_input: Absolute path to the file OR bytes content.
         source_type: The type of file (e.g., 'SHOP_TC', 'VT_NHAP').
     
     Returns:
         DataFrame with standardized columns ['key', 'quantity', ...] or None if error.
     """
     try:
+        source = None
+        file_path_str = ''
+        
+        if isinstance(file_input, str):
+            if not os.path.exists(file_input):
+                 return None
+            source = file_input
+            file_path_str = file_input
+        else:
+            source = io.BytesIO(file_input)
+            file_path_str = 'memory'
+
         # Step 1: Find the actual header row
-        header_row = find_header_row(file_path)
+        header_row = find_header_row(source)
         
         # Step 2: Read with correct header
-        df = pd.read_excel(file_path, header=header_row)
+        if hasattr(source, 'seek'): source.seek(0)
+        df = pd.read_excel(source, header=header_row)
         
         # Standardize columns
         mapping = normalize_columns(df.columns)
@@ -152,12 +177,15 @@ def read_excel_data(file_path: str, source_type: str) -> Optional[pd.DataFrame]:
             df_renamed = df_renamed[df_renamed['key'].notna()]
         
         # Add file metadata as columns
-        df_renamed['_file_path'] = file_path
+        df_renamed['_file_path'] = file_path_str
         df_renamed['_source_type'] = source_type
-        df_renamed['_creation_date'] = read_cell_c8(file_path)
+        
+        # Read C8
+        if hasattr(source, 'seek'): source.seek(0)
+        df_renamed['_creation_date'] = read_cell_c8(source)
             
         return df_renamed
         
     except Exception as e:
-        print(f"Error reading {file_path}: {e}")
+        # print(f"Error reading {file_input}: {e}")
         return None

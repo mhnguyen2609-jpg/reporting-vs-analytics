@@ -37,7 +37,7 @@ def calculate_aggregates(file_list: List[Dict]) -> Dict[str, Dict]:
         st = f['source_type']
         if st not in files_by_type:
             files_by_type[st] = []
-        files_by_type[st].append(f['path'])
+        files_by_type[st].append(f)
         
     for cat, keys in categories.items():
         total_tc = 0
@@ -47,11 +47,13 @@ def calculate_aggregates(file_list: List[Dict]) -> Dict[str, Dict]:
         
         # Calculate TC (số lượng from VT_NHAP)
         for k in keys['tc_keys']:
-            paths = files_by_type.get(k, [])
-            for p in paths:
+            files = files_by_type.get(k, [])
+            for f in files:
                 df = None
+                p = f.get('path', 'memory')
+                file_input = f.get('content') or f.get('path')
                 try:
-                    df = read_excel_data(p, k)
+                    df = read_excel_data(file_input, k)
                 except Exception as e:
                     print(f"Error processing TC file {p}: {e}")
                 if df is not None:
@@ -86,11 +88,13 @@ def calculate_aggregates(file_list: List[Dict]) -> Dict[str, Dict]:
                     
         # Calculate TT (từ VT_XUAT)
         for k in keys['tt_keys']:
-            paths = files_by_type.get(k, [])
-            for p in paths:
+            files = files_by_type.get(k, [])
+            for f in files:
                 df = None
+                p = f.get('path', 'memory')
+                file_input = f.get('content') or f.get('path')
                 try:
-                    df = read_excel_data(p, k)
+                    df = read_excel_data(file_input, k)
                 except Exception as e:
                     print(f"Error processing TT file {p}: {e}")
                 if df is not None:
@@ -165,7 +169,7 @@ def build_matrix_table(file_list: List[Dict]) -> pd.DataFrame:
         st = f['source_type']
         if st not in files_by_type:
             files_by_type[st] = []
-        files_by_type[st].append(f['path'])
+        files_by_type[st].append(f)
     
     # Step 1: Get master key list from ALL sources
     # We want to display a row if ANY column has value
@@ -178,10 +182,11 @@ def build_matrix_table(file_list: List[Dict]) -> pd.DataFrame:
     all_keys = set()
 
     # SHOP_TC
-    shop_tc_paths = files_by_type.get('SHOP_TC', [])
+    shop_tc_files = files_by_type.get('SHOP_TC', [])
     df_shop_tc = pd.DataFrame()
-    for p in shop_tc_paths:
-        d = read_excel_data(p, 'SHOP_TC')
+    for f in shop_tc_files:
+        file_input = f.get('content') or f.get('path')
+        d = read_excel_data(file_input, 'SHOP_TC')
         if d is not None and 'key' in d.columns:
             df_shop_tc = pd.concat([df_shop_tc, d])
     if not df_shop_tc.empty:
@@ -191,10 +196,11 @@ def build_matrix_table(file_list: List[Dict]) -> pd.DataFrame:
         cad_tc = pd.DataFrame()
 
     # SHOP_TT (actual)
-    shop_tt_paths = files_by_type.get('SHOP_TT', [])
+    shop_tt_files = files_by_type.get('SHOP_TT', [])
     df_shop_tt = pd.DataFrame()
-    for p in shop_tt_paths:
-        d = read_excel_data(p, 'SHOP_TT')
+    for f in shop_tt_files:
+        file_input = f.get('content') or f.get('path')
+        d = read_excel_data(file_input, 'SHOP_TT')
         if d is not None and 'key' in d.columns:
             df_shop_tt = pd.concat([df_shop_tt, d])
     if not df_shop_tt.empty:
@@ -204,10 +210,11 @@ def build_matrix_table(file_list: List[Dict]) -> pd.DataFrame:
         cad_tt = pd.DataFrame()
     
     # CNC (NESTING_TC)
-    nesting_paths = files_by_type.get('NESTING_TC', [])
+    nesting_files = files_by_type.get('NESTING_TC', [])
     df_nesting = pd.DataFrame()
-    for p in nesting_paths:
-        d = read_excel_data(p, 'NESTING_TC')
+    for f in nesting_files:
+        file_input = f.get('content') or f.get('path')
+        d = read_excel_data(file_input, 'NESTING_TC')
         if d is not None and 'key' in d.columns:
             df_nesting = pd.concat([df_nesting, d])
     if not df_nesting.empty:
@@ -220,10 +227,11 @@ def build_matrix_table(file_list: List[Dict]) -> pd.DataFrame:
     # But let's check VAN and VT first.
     
     # VT_NHAP
-    vt_nhap_paths = files_by_type.get('VT_NHAP', [])
+    vt_nhap_files = files_by_type.get('VT_NHAP', [])
     df_vt_tc = pd.DataFrame()
-    for p in vt_nhap_paths:
-        d = read_excel_data(p, 'VT_NHAP')
+    for f in vt_nhap_files:
+        file_input = f.get('content') or f.get('path')
+        d = read_excel_data(file_input, 'VT_NHAP')
         if d is not None and 'key' in d.columns: 
              if 'ten_hang' not in d.columns: d['ten_hang'] = ''
              if 'ghi_chu' not in d.columns: d['ghi_chu'] = ''
@@ -232,10 +240,11 @@ def build_matrix_table(file_list: List[Dict]) -> pd.DataFrame:
         all_keys.update(df_vt_tc['key'].astype(str).str.strip())
 
     # VT_XUAT
-    vt_xuat_paths = files_by_type.get('VT_XUAT', [])
+    vt_xuat_files = files_by_type.get('VT_XUAT', [])
     df_vt_tt = pd.DataFrame()
-    for p in vt_xuat_paths:
-        d = read_excel_data(p, 'VT_XUAT')
+    for f in vt_xuat_files:
+        file_input = f.get('content') or f.get('path')
+        d = read_excel_data(file_input, 'VT_XUAT')
         if d is not None and 'key' in d.columns:
              if 'ten_hang' not in d.columns: d['ten_hang'] = ''
              if 'ghi_chu' not in d.columns: d['ghi_chu'] = ''
@@ -278,10 +287,11 @@ def build_matrix_table(file_list: List[Dict]) -> pd.DataFrame:
     # 215:         matrix = pd.concat([matrix, cnc_tt], axis=1).fillna(0)
     
     # Since I am REPLACING Lines 150-217, I need to include CNC_TT logic.
-    cat_paths = files_by_type.get('CAT_TT', [])
+    cat_files = files_by_type.get('CAT_TT', [])
     df_cat = pd.DataFrame()
-    for p in cat_paths:
-        d = read_excel_data(p, 'CAT_TT')
+    for f in cat_files:
+        file_input = f.get('content') or f.get('path')
+        d = read_excel_data(file_input, 'CAT_TT')
         if d is not None and 'key' in d.columns:
             df_cat = pd.concat([df_cat, d])
     
@@ -305,20 +315,22 @@ def build_matrix_table(file_list: List[Dict]) -> pd.DataFrame:
     # Priority keywords -> Use Global PRIORITY_KEYWORDS
     
     # Step 4: Add VT data
-    vt_nhap_paths = files_by_type.get('VT_NHAP', [])
-    vt_xuat_paths = files_by_type.get('VT_XUAT', [])
+    vt_nhap_files = files_by_type.get('VT_NHAP', [])
+    vt_xuat_files = files_by_type.get('VT_XUAT', [])
     
     df_vt_tc = pd.DataFrame()
-    for p in vt_nhap_paths:
-        d = read_excel_data(p, 'VT_NHAP')
+    for f in vt_nhap_files:
+        file_input = f.get('content') or f.get('path')
+        d = read_excel_data(file_input, 'VT_NHAP')
         if d is not None and 'key' in d.columns:
              if 'ten_hang' not in d.columns: d['ten_hang'] = ''
              if 'ghi_chu' not in d.columns: d['ghi_chu'] = ''
              df_vt_tc = pd.concat([df_vt_tc, d])
              
     df_vt_tt = pd.DataFrame()
-    for p in vt_xuat_paths:
-        d = read_excel_data(p, 'VT_XUAT')
+    for f in vt_xuat_files:
+        file_input = f.get('content') or f.get('path')
+        d = read_excel_data(file_input, 'VT_XUAT')
         if d is not None and 'key' in d.columns:
              if 'ten_hang' not in d.columns: d['ten_hang'] = ''
              if 'ghi_chu' not in d.columns: d['ghi_chu'] = ''
@@ -389,13 +401,14 @@ def compute_delta(val_tc, val_tt):
     """
     return val_tc - val_tt
 
-def _build_ten_sp_map(files_by_type: Dict[str, List[str]]) -> Dict[str, str]:
+def _build_ten_sp_map(files_by_type: Dict[str, List[Any]]) -> Dict[str, str]:
     """Helper to build Tên SP map (Priority: SHOP_TT > SHOP_TC)"""
     ten_sp_map = {}
     
     # 1. From SHOP_TT (File "SHOP")
-    for p in files_by_type.get('SHOP_TT', []):
-        df = read_excel_data(p, 'SHOP_TT')
+    for f in files_by_type.get('SHOP_TT', []):
+        file_input = f.get('content') or f.get('path')
+        df = read_excel_data(file_input, 'SHOP_TT')
         if df is not None and 'key' in df.columns:
             df['key'] = df['key'].astype(str).str.strip()
             header_map = {c.lower(): c for c in df.columns}
@@ -409,8 +422,9 @@ def _build_ten_sp_map(files_by_type: Dict[str, List[str]]) -> Dict[str, str]:
                         ten_sp_map[key] = val
                         
     # 2. From SHOP_TC (File "SHOPT"), if missing
-    for p in files_by_type.get('SHOP_TC', []):
-        df = read_excel_data(p, 'SHOP_TC')
+    for f in files_by_type.get('SHOP_TC', []):
+        file_input = f.get('content') or f.get('path')
+        df = read_excel_data(file_input, 'SHOP_TC')
         if df is not None and 'key' in df.columns:
             df['key'] = df['key'].astype(str).str.strip()
             header_map = {c.lower(): c for c in df.columns}
@@ -424,8 +438,9 @@ def _build_ten_sp_map(files_by_type: Dict[str, List[str]]) -> Dict[str, str]:
                         ten_sp_map[key] = val
                         
     # 3. From VT_NHAP (DMVTN) - Fallback
-    for p in files_by_type.get('VT_NHAP', []):
-        df = read_excel_data(p, 'VT_NHAP')
+    for f in files_by_type.get('VT_NHAP', []):
+        file_input = f.get('content') or f.get('path')
+        df = read_excel_data(file_input, 'VT_NHAP')
         if df is not None and 'key' in df.columns:
             df['key'] = df['key'].astype(str).str.strip()
             # Try to find 'Tên SP' col first, then 'Tên hàng'
@@ -442,8 +457,9 @@ def _build_ten_sp_map(files_by_type: Dict[str, List[str]]) -> Dict[str, str]:
                         ten_sp_map[key] = val
 
     # 4. From VT_XUAT (DMVT) - Fallback
-    for p in files_by_type.get('VT_XUAT', []):
-        df = read_excel_data(p, 'VT_XUAT')
+    for f in files_by_type.get('VT_XUAT', []):
+        file_input = f.get('content') or f.get('path')
+        df = read_excel_data(file_input, 'VT_XUAT')
         if df is not None and 'key' in df.columns:
             df['key'] = df['key'].astype(str).str.strip()
             # Try to find 'Tên SP' col first, then 'Tên hàng'
@@ -490,15 +506,16 @@ def get_all_product_details(file_list: List[Dict]) -> Dict[str, List[Dict]]:
     for f in file_list:
         st = f['source_type']
         if st not in files_by_type: files_by_type[st] = []
-        files_by_type[st].append(f['path'])
+        files_by_type[st].append(f)
     
     # Pre-process CAT files to get Unique Codes
     cat_unique_codes = {} 
     cat_files = files_by_type.get('CAT_TT', [])
     # Removed print
     
-    for p in cat_files:
-        df = read_excel_data(p, 'CAT_TT')
+    for f in cat_files:
+        file_input = f.get('content') or f.get('path')
+        df = read_excel_data(file_input, 'CAT_TT')
         if df is not None:
              # Removed print
              if 'key' in df.columns:
@@ -518,8 +535,9 @@ def get_all_product_details(file_list: List[Dict]) -> Dict[str, List[Dict]]:
 
     # Process CAD files (SHOP_TC)
     cad_buffer = {}  # key -> list of rows
-    for p in files_by_type.get('SHOP_TC', []):
-        df = read_excel_data(p, 'SHOP_TC')
+    for f in files_by_type.get('SHOP_TC', []):
+        file_input = f.get('content') or f.get('path')
+        df = read_excel_data(file_input, 'SHOP_TC')
         if df is not None and 'key' in df.columns:
             df['key'] = df['key'].astype(str).str.strip()
             
@@ -589,8 +607,9 @@ def get_all_product_details(file_list: List[Dict]) -> Dict[str, List[Dict]]:
     # ... (Rest of function identical)
     
     # Process CNC files (NESTING_TC) ...
-    for p in files_by_type.get('NESTING_TC', []):
-        df = read_excel_data(p, 'NESTING_TC')
+    for f in files_by_type.get('NESTING_TC', []):
+        file_input = f.get('content') or f.get('path')
+        df = read_excel_data(file_input, 'NESTING_TC')
         if df is not None and 'key' in df.columns:
             df['key'] = df['key'].astype(str).str.strip()
             for idx, row in df.iterrows():
@@ -627,8 +646,9 @@ def get_all_product_details(file_list: List[Dict]) -> Dict[str, List[Dict]]:
     
     # First, collect VT_NHAP items (these take priority) - keyed by (product_code, item_name)
     vt_nhap_data = {}  # key -> {item_name -> item_data}
-    for p in files_by_type.get('VT_NHAP', []):
-        df = read_excel_data(p, 'VT_NHAP')
+    for f in files_by_type.get('VT_NHAP', []):
+        file_input = f.get('content') or f.get('path')
+        df = read_excel_data(file_input, 'VT_NHAP')
         if df is not None and 'key' in df.columns:
             df['key'] = df['key'].astype(str).str.strip()
             for idx, row in df.iterrows():
@@ -657,8 +677,9 @@ def get_all_product_details(file_list: List[Dict]) -> Dict[str, List[Dict]]:
     
     # Then collect VT_XUAT (DMVT) items
     vt_xuat_data = {}  # key -> {item_name -> item_data}
-    for p in files_by_type.get('VT_XUAT', []):
-        df = read_excel_data(p, 'VT_XUAT')
+    for f in files_by_type.get('VT_XUAT', []):
+        file_input = f.get('content') or f.get('path')
+        df = read_excel_data(file_input, 'VT_XUAT')
         if df is not None and 'key' in df.columns:
             df['key'] = df['key'].astype(str).str.strip()
             for idx, row in df.iterrows():
