@@ -684,7 +684,14 @@ with st.sidebar:
     # Input Root ID if not set
     root_id_input = st.text_input("Folder ID Gốc (Root)", value=st.session_state.drive_root_id)
     if root_id_input:
-        st.session_state.drive_root_id = root_id_input
+        # Auto-extract ID if user pastes a full URL
+        clean_id = root_id_input.strip()
+        if "drive.google.com" in clean_id:
+            # Try to start finding 'folders/' pattern
+            match = re.search(r'folders/([a-zA-Z0-9_-]+)', clean_id)
+            if match:
+                clean_id = match.group(1)
+        st.session_state.drive_root_id = clean_id
     
     if st.session_state.drive_root_id:
         years_map, years_list = get_available_years_drive(st.session_state.drive_root_id)
