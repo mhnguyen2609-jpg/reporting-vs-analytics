@@ -132,6 +132,18 @@ class GoogleDriveClient:
             print(f"Drive List Files Error: {e}")
             return []
             
+            return []
+            
+    def get_file_metadata(self, file_id: str) -> Dict:
+        """Get metadata (name, mimeType) for a file/folder."""
+        if not self.service: return {}
+        try:
+            return self.service.files().get(
+                fileId=file_id, fields='id, name, mimeType').execute()
+        except Exception as e:
+            print(f"Get Metadata Error: {e}")
+            return {}
+
     def read_excel(self, file_id: str) -> Optional[bytes]:
         """
         Downloads file content as bytes.

@@ -50,9 +50,18 @@ drive_client = get_drive_client()
 def get_available_years_drive(root_id):
     if not root_id: return {}, []
     try:
+        # 1. Try to list subfolders (Standard Root Structure)
         folders = drive_client.list_folders(root_id)
-        # Filter for numeric folders (Years)
         years_map = {f['name']: f['id'] for f in folders if f['name'].isdigit()}
+        
+        # 2. Fallback: Check if the provided ID IS the Year Folder itself
+        if not years_map:
+            root_meta = drive_client.get_file_metadata(root_id)
+            name = root_meta.get('name', '')
+            if name.isdigit():
+                years_map = {name: root_id}
+                st.toast(f"ℹ️ Đã phát hiện link trực tiếp đến năm {name}")
+
         years_sorted = sorted(years_map.keys(), reverse=True)
         return years_map, years_sorted
     except Exception as e:
