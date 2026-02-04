@@ -100,6 +100,35 @@ def load_data_from_drive(contract_folder_id, progress_callback=None):
     if progress_callback: progress_callback(1.0, "Hoàn tất!")
     return results
 
+# ============================================================
+# CACHED DATA STORAGE
+# ============================================================
+# Global cache storage that persists across page refreshes
+@st.cache_data(ttl=3600, show_spinner=False)  # 1 hour TTL
+def get_cached_data(year: str, cache_hash: str):
+    """Returns cached data or None if not exists."""
+    return None  # Placeholder - actual data is stored via update function
+
+def update_cached_data(year: str, data: list, timestamps: dict):
+    """Store data in persistent cache."""
+    # Generate hash from timestamps
+    cache_hash = str(hash(frozenset(timestamps.items())))
+    st.session_state[f'_cache_{year}'] = {
+        'data': data,
+        'timestamps': timestamps,
+        'hash': cache_hash
+    }
+    return cache_hash
+
+def load_from_persistent_cache(year: str, current_timestamps: dict):
+    """Try to load from persistent cache if timestamps match."""
+    cache_key = f'_cache_{year}'
+    if cache_key in st.session_state:
+        cached = st.session_state[cache_key]
+        if cached.get('timestamps') == current_timestamps:
+            return cached.get('data'), True  # data, is_valid
+    return None, False
+
 def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
     """
     Smart caching loader that checks modification times before loading.
@@ -193,9 +222,10 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
                 'nhom_percent': data.get('nhom_percent', 0)
             })
     
-    # Update cache timestamps
+    # Update cache timestamps and persistent cache
     st.session_state.cache_timestamps[str(selected_year)] = current_timestamps
     st.session_state.cache_loaded_year = str(selected_year)
+    update_cached_data(str(selected_year), all_rows, current_timestamps)
             
     progress_bar.empty()
     status_text.empty()
@@ -830,11 +860,26 @@ with st.sidebar:
         st.session_state.drive_root_id = YEAR_FOLDERS[selected_year]
         st.session_state.years_map = YEAR_FOLDERS
         
-        if st.button("🔄 Tải tất cả dự án", use_container_width=True):
-            with st.spinner("Đang quét và tải dữ liệu từ Drive..."):
-                st.session_state.master_data = load_all_contracts_data_logic(selected_year, YEAR_FOLDERS)
-                st.success(f"✅ Đã tải năm {selected_year}!")
-                st.rerun()
+        # Auto-load from cache on page refresh
+        cache_key = f'_cache_{selected_year}'
+        if st.session_state.master_data is None and cache_key in st.session_state:
+            cached = st.session_state[cache_key]
+            st.session_state.master_data = cached.get('data')
+            st.toast("⚡ Đã khôi phục dữ liệu từ cache!")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 Tải dữ liệu", use_container_width=True):
+                with st.spinner("Đang kiểm tra và tải..."):
+                    st.session_state.master_data = load_all_contracts_data_logic(selected_year, YEAR_FOLDERS)
+                    st.success(f"✅ Đã tải năm {selected_year}!")
+                    st.rerun()
+        with col2:
+            if st.button("🔃 Làm mới", use_container_width=True, help="Bỏ qua cache, tải lại toàn bộ"):
+                with st.spinner("Đang tải lại toàn bộ..."):
+                    st.session_state.master_data = load_all_contracts_data_logic(selected_year, YEAR_FOLDERS, force_reload=True)
+                    st.success(f"✅ Đã tải mới năm {selected_year}!")
+                    st.rerun()
         
         st.markdown("---")
         
