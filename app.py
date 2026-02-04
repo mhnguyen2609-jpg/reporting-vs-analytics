@@ -39,10 +39,10 @@ def natural_sort_key(s):
 
 # Initialize Drive Client
 @st.cache_resource
-def get_drive_client_v2():
+def get_drive_client_v3():
     return GoogleDriveClient()
 
-drive_client = get_drive_client_v2()
+drive_client = get_drive_client_v3()
 
 # ============================================================
 # HELPER FUNCTIONS (DRIVE)
@@ -760,49 +760,37 @@ with st.sidebar:
     
     # GOOGLE DRIVE MODE
     if source == 'Google Drive':
-        # Input Root ID if not set
-        root_id_input = st.text_input("Folder ID Gốc (Root)", value=st.session_state.drive_root_id)
-        if root_id_input:
-            # Auto-extract ID if user pastes a full URL
-            clean_id = root_id_input.strip()
-            if "drive.google.com" in clean_id:
-                # Try to start finding 'folders/' pattern
-                match = re.search(r'folders/([a-zA-Z0-9_-]+)', clean_id)
-                if match:
-                    clean_id = match.group(1)
-            st.session_state.drive_root_id = clean_id
+        # Hardcoded Year Shortcuts
+        YEAR_FOLDERS = {
+            '2026': '1hn-nFm56a3X24qs3WbweJfx6BqJ9ggr6',
+            '2025': '1YoRBhoWDXMB4-byVtyqHHNKM1PVKbptd',
+        }
         
-        if st.session_state.drive_root_id:
-            years_map, years_list = get_available_years_drive(st.session_state.drive_root_id)
-            st.session_state.years_map = years_map
+        years_list = list(YEAR_FOLDERS.keys())
+        selected_year = st.selectbox("📅 Chọn Năm", years_list, index=0)
+        st.session_state.selected_year = selected_year
+        st.session_state.drive_root_id = YEAR_FOLDERS[selected_year]
+        st.session_state.years_map = YEAR_FOLDERS
+        
+        if st.button("🔄 Tải tất cả dự án", use_container_width=True):
+            with st.spinner("Đang quét và tải dữ liệu từ Drive..."):
+                st.session_state.master_data = load_all_contracts_data_logic(selected_year, YEAR_FOLDERS)
+                st.success(f"✅ Đã tải năm {selected_year}!")
+                st.rerun()
+        
+        st.markdown("---")
+        
+        if st.session_state.master_data:
+            year_id = YEAR_FOLDERS.get(str(selected_year))
+            c_map, c_list = get_contracts_for_year_drive(year_id)
+            st.session_state.contracts_map = c_map
             
-            if years_list:
-                selected_year = st.selectbox("📅 Chọn Năm", years_list, index=0)
-                st.session_state.selected_year = selected_year
-                
-                if st.button("🔄 Tải tất cả dự án (Drive)", use_container_width=True):
-                    with st.spinner("Đang quét và tải dữ liệu từ Drive..."):
-                        st.session_state.master_data = load_all_contracts_data_logic(selected_year, years_map)
-                        st.success(f"✅ Đã tải năm {selected_year}!")
-                        st.rerun()
-                
-                st.markdown("---")
-                
-                if st.session_state.master_data:
-                    year_id = years_map.get(str(selected_year))
-                    c_map, c_list = get_contracts_for_year_drive(year_id)
-                    st.session_state.contracts_map = c_map
-                    
-                    st.markdown("### 📁 Xem chi tiết")
-                    selected_contract = st.selectbox("Chọn Hợp đồng", ["-- Chọn --"] + c_list)
-                    if selected_contract != "-- Chọn --":
-                        st.session_state.selected_contract = selected_contract
-                    else:
-                        st.session_state.selected_contract = None
+            st.markdown("### 📁 Xem chi tiết")
+            selected_contract = st.selectbox("Chọn Hợp đồng", ["-- Chọn --"] + c_list)
+            if selected_contract != "-- Chọn --":
+                st.session_state.selected_contract = selected_contract
             else:
-                 st.warning("Không tìm thấy thư mục Năm nào hoặc Folder ID sai.")
-        else:
-            st.info("Vui lòng nhập Google Drive Folder ID chuỗi dự án.")
+                st.session_state.selected_contract = None
             
     # LOCAL HDD MODE
     else:

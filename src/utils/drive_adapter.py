@@ -26,19 +26,22 @@ class GoogleDriveClient:
         # Check Streamlit secrets first (for Cloud Deployment)
         try:
             import streamlit as st
-            if "gcp_service_account" in st.secrets:
+            if hasattr(st, 'secrets') and st.secrets and "gcp_service_account" in st.secrets:
                 self.creds = Credentials.from_service_account_info(
                     st.secrets["gcp_service_account"], scopes=SCOPES)
+                self.service = build('drive', 'v3', credentials=self.creds)
+                print("[OK] Drive Client: Loaded from Streamlit secrets")
                 return
         except Exception:
-            pass # Not running in Streamlit or no secrets
+            pass # Secrets not available, continue to file-based auth
 
         if os.path.exists(credentials_path):
             try:
                 self.creds = Credentials.from_service_account_file(
                     credentials_path, scopes=SCOPES)
+                print(f"[OK] Drive Client: Loaded from {credentials_path}")
             except Exception as e:
-                print(f"Error loading service account: {e}")
+                print(f"[ERROR] Error loading service account: {e}")
 
         # 2. If no service account, try User Auth (OAuth)
         if not self.creds:
@@ -62,8 +65,9 @@ class GoogleDriveClient:
         
         if self.creds:
             self.service = build('drive', 'v3', credentials=self.creds)
+            print("[OK] Drive Client: Service initialized successfully")
         else:
-            print("Warning: No valid credentials found. Drive features will not work.")
+            print("[ERROR] Warning: No valid credentials found. Drive features will not work.")
 
     def list_folders(self, parent_id: str) -> List[Dict]:
         """
