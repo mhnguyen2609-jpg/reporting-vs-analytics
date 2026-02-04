@@ -4,13 +4,13 @@ import pickle
 import pandas as pd
 from typing import List, Dict, Optional, Union
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
+from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from google.oauth2.service_account import Credentials
 
-# Scopes required
-SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+# Scopes required (need write access for cache persistence)
+SCOPES = ['https://www.googleapis.com/auth/drive']
 
 class GoogleDriveClient:
     def __init__(self, credentials_path: str = 'credentials.json', token_path: str = 'token.pickle'):
@@ -196,4 +196,70 @@ class GoogleDriveClient:
             return fh.getvalue()
         except Exception as e:
             print(f"Drive Read Error ({file_id}): {e}")
+            return None
+
+    # ============================================================
+    # CACHE PERSISTENCE METHODS
+    # ============================================================
+    
+    def find_file_in_folder(self, folder_id: str, filename: str) -> Optional[str]:
+        """Find a file by name in a specific folder. Returns file_id or None."""
+        if not self.service: return None
+        try:
+            query = f"'{folder_id}' in parents and name='{filename}' and trashed=false"
+            response = self.service.files().list(
+                q=query, fields='files(id, name)', pageSize=1).execute()
+            files = response.get('files', [])
+            return files[0]['id'] if files else None
+        except Exception as e:
+            print(f"Find File Error: {e}")
+            return None
+    
+    def download_text_file(self, file_id: str) -> Optional[str]:
+        """Download a text file and return its content as string."""
+        content = self.read_excel(file_id)  # Same method works for any file
+        if content:
+            return content.decode('utf-8')
+        return None
+    
+    def upload_file(self, folder_id: str, filename: str, content: str, 
+                    mime_type: str = 'application/json') -> Optional[str]:
+        """
+        Upload or update a file in the specified folder.
+        Returns file_id on success, None on failure.
+        """
+        if not self.service: return None
+        
+        try:
+            # Check if file already exists
+            existing_id = self.find_file_in_folder(folder_id, filename)
+            
+            # Prepare content
+            file_content = io.BytesIO(content.encode('utf-8'))
+            media = MediaIoBaseUpload(file_content, mimetype=mime_type, resumable=True)
+            
+            if existing_id:
+                # Update existing file
+                file = self.service.files().update(
+                    fileId=existing_id,
+                    media_body=media
+                ).execute()
+                print(f"[OK] Cache updated: {filename}")
+                return file.get('id')
+            else:
+                # Create new file
+                file_metadata = {
+                    'name': filename,
+                    'parents': [folder_id],
+                    'mimeType': mime_type
+                }
+                file = self.service.files().create(
+                    body=file_metadata,
+                    media_body=media,
+                    fields='id'
+                ).execute()
+                print(f"[OK] Cache created: {filename}")
+                return file.get('id')
+        except Exception as e:
+            print(f"Upload File Error: {e}")
             return None

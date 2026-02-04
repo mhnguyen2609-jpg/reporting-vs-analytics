@@ -101,17 +101,20 @@ def load_data_from_drive(contract_folder_id, progress_callback=None):
     return results
 
 # ============================================================
-# SHARED CACHE (All users share the same cache)
+# SHARED CACHE (Persisted on Google Drive)
 # ============================================================
-# Using file-based cache that persists and is shared across all sessions
+# Cache is saved to Year folder on Drive for permanent persistence
 
 import json
 import hashlib
 from pathlib import Path
 
-# Cache directory (works on both local and Streamlit Cloud)
+# Local cache directory (temporary, fallback)
 CACHE_DIR = Path("/tmp/streamlit_cache") if os.path.exists("/tmp") else Path("./cache")
 CACHE_DIR.mkdir(exist_ok=True)
+
+CACHE_DATA_FILENAME = "_cache_data.json"
+CACHE_TIMESTAMPS_FILENAME = "_cache_timestamps.json"
 
 def get_cache_path(year: str) -> Path:
     return CACHE_DIR / f"data_{year}.json"
@@ -119,20 +122,34 @@ def get_cache_path(year: str) -> Path:
 def get_timestamps_path(year: str) -> Path:
     return CACHE_DIR / f"timestamps_{year}.json"
 
-def save_shared_cache(year: str, data: list, timestamps: dict):
-    """Save data to shared cache file."""
+def save_shared_cache(year: str, data: list, timestamps: dict, year_folder_id: str = None):
+    """Save data to shared cache - both local and Google Drive."""
     try:
+        # 1. Save locally first (for quick access)
         with open(get_cache_path(year), 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False)
         with open(get_timestamps_path(year), 'w', encoding='utf-8') as f:
             json.dump(timestamps, f, ensure_ascii=False)
+        
+        # 2. Save to Google Drive (for persistence across restarts)
+        if year_folder_id and drive_client and drive_client.service:
+            data_json = json.dumps(data, ensure_ascii=False)
+            ts_json = json.dumps(timestamps, ensure_ascii=False)
+            drive_client.upload_file(year_folder_id, CACHE_DATA_FILENAME, data_json)
+            drive_client.upload_file(year_folder_id, CACHE_TIMESTAMPS_FILENAME, ts_json)
+            print(f"[OK] Cache saved to Drive: Year {year}")
         return True
     except Exception as e:
         print(f"Cache save error: {e}")
         return False
 
-def load_shared_cache(year: str) -> tuple:
-    """Load data from shared cache file. Returns (data, timestamps) or (None, None)."""
+def load_shared_cache(year: str, year_folder_id: str = None) -> tuple:
+    """
+    Load data from shared cache. 
+    Priority: 1. Local cache (fast), 2. Google Drive cache (persistent)
+    Returns (data, timestamps) or (None, None).
+    """
+    # 1. Try local cache first
     try:
         cache_path = get_cache_path(year)
         ts_path = get_timestamps_path(year)
@@ -143,12 +160,35 @@ def load_shared_cache(year: str) -> tuple:
                 timestamps = json.load(f)
             return data, timestamps
     except Exception as e:
-        print(f"Cache load error: {e}")
+        print(f"Local cache load error: {e}")
+    
+    # 2. Try Google Drive cache (if local not found)
+    if year_folder_id and drive_client and drive_client.service:
+        try:
+            data_file_id = drive_client.find_file_in_folder(year_folder_id, CACHE_DATA_FILENAME)
+            ts_file_id = drive_client.find_file_in_folder(year_folder_id, CACHE_TIMESTAMPS_FILENAME)
+            
+            if data_file_id and ts_file_id:
+                data_json = drive_client.download_text_file(data_file_id)
+                ts_json = drive_client.download_text_file(ts_file_id)
+                if data_json and ts_json:
+                    data = json.loads(data_json)
+                    timestamps = json.loads(ts_json)
+                    # Save to local cache for faster access next time
+                    with open(get_cache_path(year), 'w', encoding='utf-8') as f:
+                        json.dump(data, f, ensure_ascii=False)
+                    with open(get_timestamps_path(year), 'w', encoding='utf-8') as f:
+                        json.dump(timestamps, f, ensure_ascii=False)
+                    print(f"[OK] Cache loaded from Drive: Year {year}")
+                    return data, timestamps
+        except Exception as e:
+            print(f"Drive cache load error: {e}")
+    
     return None, None
 
-def is_cache_valid(year: str, current_timestamps: dict) -> bool:
+def is_cache_valid(year: str, current_timestamps: dict, year_folder_id: str = None) -> bool:
     """Check if cached timestamps match current timestamps."""
-    _, cached_ts = load_shared_cache(year)
+    _, cached_ts = load_shared_cache(year, year_folder_id)
     if cached_ts is None:
         return False
     return cached_ts == current_timestamps
@@ -165,8 +205,8 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
     contracts_map, contracts_list = get_contracts_for_year_drive(year_id)
     categories = ['CAD', 'CNC', 'VÁN', 'VẬT TƯ', 'VẬT TƯ ƯU TIÊN']
     
-    # Check SHARED cache first
-    cached_data, cached_timestamps = load_shared_cache(str(selected_year))
+    # Check SHARED cache first (from Drive or local)
+    cached_data, cached_timestamps = load_shared_cache(str(selected_year), year_id)
     
     # Get current modification times for all contracts
     contract_ids = list(contracts_map.values())
@@ -247,8 +287,8 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
                 'nhom_percent': data.get('nhom_percent', 0)
             })
     
-    # Save to SHARED cache (all users will see this)
-    save_shared_cache(str(selected_year), all_rows, current_timestamps)
+    # Save to SHARED cache (local + Drive for persistence)
+    save_shared_cache(str(selected_year), all_rows, current_timestamps, year_id)
     # Also update session state for quick access
     st.session_state.cache_loaded_year = str(selected_year)
             
@@ -885,9 +925,10 @@ with st.sidebar:
         st.session_state.drive_root_id = YEAR_FOLDERS[selected_year]
         st.session_state.years_map = YEAR_FOLDERS
         
-        # Auto-load from SHARED cache on page load
+        # Auto-load from SHARED cache on page load (from Drive if needed)
+        year_folder_id = YEAR_FOLDERS[selected_year]
         if st.session_state.master_data is None:
-            shared_data, _ = load_shared_cache(str(selected_year))
+            shared_data, _ = load_shared_cache(str(selected_year), year_folder_id)
             if shared_data:
                 st.session_state.master_data = shared_data
                 st.toast("⚡ Đã tải dữ liệu từ cache CHUNG!")
