@@ -101,37 +101,62 @@ def load_data_from_drive(contract_folder_id, progress_callback=None):
     return results
 
 # ============================================================
-# CACHED DATA STORAGE
+# SHARED CACHE (All users share the same cache)
 # ============================================================
-# Global cache storage that persists across page refreshes
-@st.cache_data(ttl=3600, show_spinner=False)  # 1 hour TTL
-def get_cached_data(year: str, cache_hash: str):
-    """Returns cached data or None if not exists."""
-    return None  # Placeholder - actual data is stored via update function
+# Using file-based cache that persists and is shared across all sessions
 
-def update_cached_data(year: str, data: list, timestamps: dict):
-    """Store data in persistent cache."""
-    # Generate hash from timestamps
-    cache_hash = str(hash(frozenset(timestamps.items())))
-    st.session_state[f'_cache_{year}'] = {
-        'data': data,
-        'timestamps': timestamps,
-        'hash': cache_hash
-    }
-    return cache_hash
+import json
+import hashlib
+from pathlib import Path
 
-def load_from_persistent_cache(year: str, current_timestamps: dict):
-    """Try to load from persistent cache if timestamps match."""
-    cache_key = f'_cache_{year}'
-    if cache_key in st.session_state:
-        cached = st.session_state[cache_key]
-        if cached.get('timestamps') == current_timestamps:
-            return cached.get('data'), True  # data, is_valid
-    return None, False
+# Cache directory (works on both local and Streamlit Cloud)
+CACHE_DIR = Path("/tmp/streamlit_cache") if os.path.exists("/tmp") else Path("./cache")
+CACHE_DIR.mkdir(exist_ok=True)
+
+def get_cache_path(year: str) -> Path:
+    return CACHE_DIR / f"data_{year}.json"
+
+def get_timestamps_path(year: str) -> Path:
+    return CACHE_DIR / f"timestamps_{year}.json"
+
+def save_shared_cache(year: str, data: list, timestamps: dict):
+    """Save data to shared cache file."""
+    try:
+        with open(get_cache_path(year), 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False)
+        with open(get_timestamps_path(year), 'w', encoding='utf-8') as f:
+            json.dump(timestamps, f, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"Cache save error: {e}")
+        return False
+
+def load_shared_cache(year: str) -> tuple:
+    """Load data from shared cache file. Returns (data, timestamps) or (None, None)."""
+    try:
+        cache_path = get_cache_path(year)
+        ts_path = get_timestamps_path(year)
+        if cache_path.exists() and ts_path.exists():
+            with open(cache_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            with open(ts_path, 'r', encoding='utf-8') as f:
+                timestamps = json.load(f)
+            return data, timestamps
+    except Exception as e:
+        print(f"Cache load error: {e}")
+    return None, None
+
+def is_cache_valid(year: str, current_timestamps: dict) -> bool:
+    """Check if cached timestamps match current timestamps."""
+    _, cached_ts = load_shared_cache(year)
+    if cached_ts is None:
+        return False
+    return cached_ts == current_timestamps
 
 def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
     """
     Smart caching loader that checks modification times before loading.
+    Uses SHARED cache - all users see the same cached data.
     Only reloads contracts that have been modified since last load.
     """
     year_id = years_map.get(str(selected_year))
@@ -140,9 +165,8 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
     contracts_map, contracts_list = get_contracts_for_year_drive(year_id)
     categories = ['CAD', 'CNC', 'VÁN', 'VẬT TƯ', 'VẬT TƯ ƯU TIÊN']
     
-    # Check if we have cached data for this year
-    cached_data = st.session_state.master_data if st.session_state.cache_loaded_year == str(selected_year) else None
-    cached_timestamps = st.session_state.cache_timestamps.get(str(selected_year), {})
+    # Check SHARED cache first
+    cached_data, cached_timestamps = load_shared_cache(str(selected_year))
     
     # Get current modification times for all contracts
     contract_ids = list(contracts_map.values())
@@ -158,9 +182,10 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
     if force_reload or not cached_data:
         contracts_to_load = contracts_list
     else:
+        cached_ts_dict = cached_timestamps if cached_timestamps else {}
         for contract_name in contracts_list:
             contract_id = contracts_map[contract_name]
-            old_ts = cached_timestamps.get(contract_id, '')
+            old_ts = cached_ts_dict.get(contract_id, '')
             new_ts = current_timestamps.get(contract_id, '')
             if old_ts != new_ts:
                 contracts_to_load.append(contract_name)
@@ -168,7 +193,7 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
     # If nothing changed, use cached data
     if not contracts_to_load and cached_data:
         status_text.text("")
-        st.toast("✅ Dữ liệu không thay đổi, dùng cache!")
+        st.toast("✅ Dữ liệu không thay đổi, dùng cache CHUNG!")
         return cached_data
     
     # Show what we're doing
@@ -222,10 +247,10 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
                 'nhom_percent': data.get('nhom_percent', 0)
             })
     
-    # Update cache timestamps and persistent cache
-    st.session_state.cache_timestamps[str(selected_year)] = current_timestamps
+    # Save to SHARED cache (all users will see this)
+    save_shared_cache(str(selected_year), all_rows, current_timestamps)
+    # Also update session state for quick access
     st.session_state.cache_loaded_year = str(selected_year)
-    update_cached_data(str(selected_year), all_rows, current_timestamps)
             
     progress_bar.empty()
     status_text.empty()
@@ -860,12 +885,12 @@ with st.sidebar:
         st.session_state.drive_root_id = YEAR_FOLDERS[selected_year]
         st.session_state.years_map = YEAR_FOLDERS
         
-        # Auto-load from cache on page refresh
-        cache_key = f'_cache_{selected_year}'
-        if st.session_state.master_data is None and cache_key in st.session_state:
-            cached = st.session_state[cache_key]
-            st.session_state.master_data = cached.get('data')
-            st.toast("⚡ Đã khôi phục dữ liệu từ cache!")
+        # Auto-load from SHARED cache on page load
+        if st.session_state.master_data is None:
+            shared_data, _ = load_shared_cache(str(selected_year))
+            if shared_data:
+                st.session_state.master_data = shared_data
+                st.toast("⚡ Đã tải dữ liệu từ cache CHUNG!")
         
         col1, col2 = st.columns(2)
         with col1:
