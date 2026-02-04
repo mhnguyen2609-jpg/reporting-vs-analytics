@@ -36,16 +36,37 @@ def identify_source_type(filename: str, folder_name: str = None) -> Optional[str
     
     return match
 
-def scan_project_files(root_path: str = DEFAULT_ROOT_PATH, year: str = None, contract_id: str = None) -> List[Dict]:
+def scan_project_files(target_dir: str = DEFAULT_ROOT_PATH) -> List[Dict]:
     """
-    Legacy local file scanner (kept for reference or local fallback).
+    Scans a local directory for Excel files and identifies their source type.
     """
-    # ... (existing code omitted for brevity if we are fully replacing, but let's keep it if user wants fallback)
-    # For this task, I will rename the original or just add the new function.
-    # The user wants to "turn app into web on streamlit", usually implies replacing.
-    # But let's keep local scan for safety/testing, and add `scan_drive_project_files`.
-    
-    pass # I'll overwrite the whole file to include both or switch logic.
+    results = []
+    if not os.path.exists(target_dir):
+        return []
+        
+    for root, dirs, files in os.walk(target_dir):
+        for filename in files:
+            if not any(filename.lower().endswith(ext) for ext in EXCEL_EXTENSIONS):
+                continue
+                
+            # Skip temp files
+            if filename.startswith('~$'):
+                continue
+                
+            full_path = os.path.join(root, filename)
+            # Identify type
+            # Pass folder name for context if needed (e.g. parent folder)
+            folder_name = os.path.basename(root)
+            source_type = identify_source_type(filename, folder_name)
+            
+            if source_type:
+                results.append({
+                    'path': full_path,
+                    'filename': filename,
+                    'source_type': source_type,
+                    'last_modified': os.path.getmtime(full_path)
+                })
+    return results
 
 def scan_drive_files(drive_client: GoogleDriveClient, folder_id: str) -> List[Dict]:
     """

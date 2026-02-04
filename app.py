@@ -10,9 +10,10 @@ import time
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from src.utils.file_scanner import scan_drive_files
+from src.utils.file_scanner import scan_drive_files, scan_project_files
 from src.core.calculator import calculate_aggregates, build_matrix_table, get_all_product_details
 from src.utils.drive_adapter import GoogleDriveClient
+from src.core.constants import DEFAULT_ROOT_PATH
 
 # ============================================================
 # PAGE CONFIG
@@ -135,6 +136,64 @@ def load_all_contracts_data_logic(selected_year, years_map):
             all_rows.append({
                 'contract': contract_name,
                 'category': cat,
+                'tc': data['TC'],
+                'tt': data['TT'],
+                'percent': data['percent'],
+                'nhom_hang_tc': data.get('nhom_hang_tc', 0),
+                'nhom_hang_tt': data.get('nhom_hang_tt', 0),
+                'nhom_percent': data.get('nhom_percent', 0)
+            })
+            
+    progress_bar.empty()
+    status_text.empty()
+    return all_rows
+
+# ============================================================
+# HELPER FUNCTIONS (LOCAL LEGACY)
+# ============================================================
+def get_available_years_local(root_path):
+    if not os.path.exists(root_path): return []
+    try:
+        return sorted([d for d in os.listdir(root_path) 
+                       if os.path.isdir(os.path.join(root_path, d)) and d.isdigit()], 
+                      reverse=True)
+    except: return []
+
+def get_contracts_for_year_local(root_path, year):
+    year_path = os.path.join(root_path, str(year))
+    if not os.path.exists(year_path): return []
+    try:
+        return sorted([d for d in os.listdir(year_path) 
+                       if os.path.isdir(os.path.join(year_path, d))], key=natural_sort_key)
+    except: return []
+
+def load_all_contracts_data_local(root_path, year):
+    contracts = get_contracts_for_year_local(root_path, year)
+    all_rows = []
+    categories = ['CAD', 'CNC', 'VÁN', 'VẬT TƯ', 'VẬT TƯ ƯU TIÊN']
+    
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    total = len(contracts)
+    
+    for idx, contract in enumerate(contracts):
+        status_text.text(f"Đang quét (Local): {contract} ({idx+1}/{total})")
+        progress_bar.progress(idx / total if total > 0 else 0)
+        
+        contract_path = os.path.join(root_path, str(year), contract)
+        files = scan_project_files(contract_path)
+        aggs = calculate_aggregates(files) if files else {}
+        
+        for cat in categories:
+            agg_key = cat
+            if cat == 'VÁN': agg_key = 'VAN'
+            if cat == 'VẬT TƯ': agg_key = 'VAT_TU'
+            if cat == 'VẬT TƯ ƯU TIÊN': agg_key = 'VAT_TU_UU_TIEN'
+            
+            data = aggs.get(agg_key, {'TC': 0, 'TT': 0, 'percent': 0})
+            all_rows.append({
+                'contract': contract,
+                'category': cat, # Display name
                 'tc': data['TC'],
                 'tt': data['TT'],
                 'percent': data['percent'],
@@ -678,6 +737,10 @@ if 'selected_contract' not in st.session_state:
     st.session_state.selected_contract = None
 if 'drive_root_id' not in st.session_state:
     st.session_state.drive_root_id = ''
+if 'local_root_path' not in st.session_state:
+    st.session_state.local_root_path = DEFAULT_ROOT_PATH
+if 'data_source' not in st.session_state:
+    st.session_state.data_source = 'Google Drive'
 if 'years_map' not in st.session_state:
     st.session_state.years_map = {}
 if 'contracts_map' not in st.session_state:
@@ -688,55 +751,87 @@ if 'contracts_map' not in st.session_state:
 # ============================================================
 with st.sidebar:
     st.markdown("## 🏭 Quản lý Sản xuất")
+    
+    # Source Toggle
+    source = st.radio("Nguồn dữ liệu", ["Google Drive", "Local HDD (Offline)"], 
+                      index=0 if st.session_state.data_source == 'Google Drive' else 1)
+    st.session_state.data_source = source
     st.markdown("---")
     
-    # Input Root ID if not set
-    root_id_input = st.text_input("Folder ID Gốc (Root)", value=st.session_state.drive_root_id)
-    if root_id_input:
-        # Auto-extract ID if user pastes a full URL
-        clean_id = root_id_input.strip()
-        if "drive.google.com" in clean_id:
-            # Try to start finding 'folders/' pattern
-            match = re.search(r'folders/([a-zA-Z0-9_-]+)', clean_id)
-            if match:
-                clean_id = match.group(1)
-        st.session_state.drive_root_id = clean_id
-    
-    if st.session_state.drive_root_id:
-        years_map, years_list = get_available_years_drive(st.session_state.drive_root_id)
-        st.session_state.years_map = years_map
+    # GOOGLE DRIVE MODE
+    if source == 'Google Drive':
+        # Input Root ID if not set
+        root_id_input = st.text_input("Folder ID Gốc (Root)", value=st.session_state.drive_root_id)
+        if root_id_input:
+            # Auto-extract ID if user pastes a full URL
+            clean_id = root_id_input.strip()
+            if "drive.google.com" in clean_id:
+                # Try to start finding 'folders/' pattern
+                match = re.search(r'folders/([a-zA-Z0-9_-]+)', clean_id)
+                if match:
+                    clean_id = match.group(1)
+            st.session_state.drive_root_id = clean_id
         
-        if years_list:
-            selected_year = st.selectbox("📅 Chọn Năm", years_list, index=0)
+        if st.session_state.drive_root_id:
+            years_map, years_list = get_available_years_drive(st.session_state.drive_root_id)
+            st.session_state.years_map = years_map
+            
+            if years_list:
+                selected_year = st.selectbox("📅 Chọn Năm", years_list, index=0)
+                st.session_state.selected_year = selected_year
+                
+                if st.button("🔄 Tải tất cả dự án (Drive)", use_container_width=True):
+                    with st.spinner("Đang quét và tải dữ liệu từ Drive..."):
+                        st.session_state.master_data = load_all_contracts_data_logic(selected_year, years_map)
+                        st.success(f"✅ Đã tải năm {selected_year}!")
+                        st.rerun()
+                
+                st.markdown("---")
+                
+                if st.session_state.master_data:
+                    year_id = years_map.get(str(selected_year))
+                    c_map, c_list = get_contracts_for_year_drive(year_id)
+                    st.session_state.contracts_map = c_map
+                    
+                    st.markdown("### 📁 Xem chi tiết")
+                    selected_contract = st.selectbox("Chọn Hợp đồng", ["-- Chọn --"] + c_list)
+                    if selected_contract != "-- Chọn --":
+                        st.session_state.selected_contract = selected_contract
+                    else:
+                        st.session_state.selected_contract = None
+            else:
+                 st.warning("Không tìm thấy thư mục Năm nào hoặc Folder ID sai.")
+        else:
+            st.info("Vui lòng nhập Google Drive Folder ID chuỗi dự án.")
+            
+    # LOCAL HDD MODE
+    else:
+        local_path = st.text_input("Đường dẫn Local", value=st.session_state.local_root_path)
+        st.session_state.local_root_path = local_path
+        
+        years = get_available_years_local(local_path)
+        if years:
+            selected_year = st.selectbox("📅 Chọn Năm", years, index=0)
             st.session_state.selected_year = selected_year
             
-            if st.button("🔄 Tải tất cả dự án", use_container_width=True):
-                with st.spinner("Đang quét và tải dữ liệu từ Drive..."):
-                    st.session_state.master_data = load_all_contracts_data_logic(selected_year, years_map)
+            if st.button("🔄 Tải tất cả dự án (Local)", use_container_width=True):
+                with st.spinner("Đang quét ổ cứng..."):
+                    st.session_state.master_data = load_all_contracts_data_local(local_path, selected_year)
                     st.success(f"✅ Đã tải năm {selected_year}!")
                     st.rerun()
             
             st.markdown("---")
             
             if st.session_state.master_data:
-                # Get contracts list (could fetch from Drive or deduce from master_data)
-                # Fetching from Drive is safer for 'selecting' a contract to view details
-                # because master_data might be filtered or simplified.
-                # But to save API calls, let's use the helper cache
-                year_id = years_map.get(str(selected_year))
-                c_map, c_list = get_contracts_for_year_drive(year_id)
-                st.session_state.contracts_map = c_map
-                
+                contracts = get_contracts_for_year_local(local_path, selected_year)
                 st.markdown("### 📁 Xem chi tiết")
-                selected_contract = st.selectbox("Chọn Hợp đồng", ["-- Chọn --"] + c_list)
+                selected_contract = st.selectbox("Chọn Hợp đồng", ["-- Chọn --"] + contracts)
                 if selected_contract != "-- Chọn --":
                     st.session_state.selected_contract = selected_contract
                 else:
                     st.session_state.selected_contract = None
         else:
-             st.warning("Không tìm thấy thư mục Năm nào hoặc Folder ID sai.")
-    else:
-        st.info("Vui lòng nhập Google Drive Folder ID chuỗi dự án.")
+            st.error("Không tìm thấy thư mục năm nào trong đường dẫn này.")
 
 # ============================================================
 # MAIN AREA
@@ -780,12 +875,19 @@ if st.session_state.selected_contract:
             st.button("🔄 Làm mới", key="btn_refresh", use_container_width=True)
     
     # Progress Summary
-    contract_id = st.session_state.contracts_map.get(st.session_state.selected_contract)
-    if contract_id:
-        files = load_data_from_drive(contract_id)
-        aggs = calculate_aggregates(files) if files else {}
+    contract_id = None
+    files = []
+    
+    if st.session_state.data_source == 'Google Drive':
+        contract_id = st.session_state.contracts_map.get(st.session_state.selected_contract)
+        if contract_id:
+            files = load_data_from_drive(contract_id)
     else:
-        aggs = {}
+        # Local Mode
+        contract_path = os.path.join(st.session_state.local_root_path, str(st.session_state.selected_year), st.session_state.selected_contract)
+        files = scan_project_files(contract_path)
+    
+    aggs = calculate_aggregates(files) if files else {}
     
     cad = aggs.get('CAD', {'TC': 0, 'TT': 0})
     cnc = aggs.get('CNC', {'TC': 0, 'TT': 0})
@@ -1228,11 +1330,14 @@ if st.session_state.selected_contract:
     st.markdown("---")
     st.markdown(f"### 📋 Bảng Matrix Chi tiết")
     
-    contract_id = st.session_state.contracts_map.get(st.session_state.selected_contract)
-    if contract_id:
-         files = load_data_from_drive(contract_id)
+    files = []
+    if st.session_state.data_source == 'Google Drive':
+        contract_id = st.session_state.contracts_map.get(st.session_state.selected_contract)
+        if contract_id:
+             files = load_data_from_drive(contract_id)
     else:
-         files = []
+         contract_path = os.path.join(st.session_state.local_root_path, str(st.session_state.selected_year), st.session_state.selected_contract)
+         files = scan_project_files(contract_path)
     
     if files:
         matrix = build_matrix_table(files)
