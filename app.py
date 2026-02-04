@@ -100,29 +100,78 @@ def load_data_from_drive(contract_folder_id, progress_callback=None):
     if progress_callback: progress_callback(1.0, "Hoàn tất!")
     return results
 
-def load_all_contracts_data_logic(selected_year, years_map):
+def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
+    """
+    Smart caching loader that checks modification times before loading.
+    Only reloads contracts that have been modified since last load.
+    """
     year_id = years_map.get(str(selected_year))
     if not year_id: return []
     
     contracts_map, contracts_list = get_contracts_for_year_drive(year_id)
-    all_rows = []
     categories = ['CAD', 'CNC', 'VÁN', 'VẬT TƯ', 'VẬT TƯ ƯU TIÊN']
+    
+    # Check if we have cached data for this year
+    cached_data = st.session_state.master_data if st.session_state.cache_loaded_year == str(selected_year) else None
+    cached_timestamps = st.session_state.cache_timestamps.get(str(selected_year), {})
+    
+    # Get current modification times for all contracts
+    contract_ids = list(contracts_map.values())
+    
+    status_text = st.empty()
+    if not force_reload and cached_data:
+        status_text.text("Đang kiểm tra thay đổi...")
+    
+    current_timestamps = drive_client.get_folder_modified_times(contract_ids)
+    
+    # Determine which contracts need to be reloaded
+    contracts_to_load = []
+    if force_reload or not cached_data:
+        contracts_to_load = contracts_list
+    else:
+        for contract_name in contracts_list:
+            contract_id = contracts_map[contract_name]
+            old_ts = cached_timestamps.get(contract_id, '')
+            new_ts = current_timestamps.get(contract_id, '')
+            if old_ts != new_ts:
+                contracts_to_load.append(contract_name)
+    
+    # If nothing changed, use cached data
+    if not contracts_to_load and cached_data:
+        status_text.text("")
+        st.toast("✅ Dữ liệu không thay đổi, dùng cache!")
+        return cached_data
+    
+    # Show what we're doing
+    if contracts_to_load and len(contracts_to_load) < len(contracts_list):
+        st.toast(f"🔄 Đang cập nhật {len(contracts_to_load)} hợp đồng đã thay đổi...")
+    
+    # Build result - start with cached data if partial reload
+    all_rows = []
+    cached_contracts = set()
+    
+    if cached_data and not force_reload:
+        for row in cached_data:
+            if row['contract'] not in contracts_to_load:
+                all_rows.append(row)
+                cached_contracts.add(row['contract'])
     
     # Progress bar
     progress_bar = st.progress(0)
-    status_text = st.empty()
     
-    total_contracts = len(contracts_list)
-    if total_contracts == 0: return []
+    total_to_load = len(contracts_to_load)
+    if total_to_load == 0:
+        progress_bar.empty()
+        status_text.empty()
+        return all_rows
     
-    for idx, contract_name in enumerate(contracts_list):
+    for idx, contract_name in enumerate(contracts_to_load):
         contract_id = contracts_map[contract_name]
-        status_text.text(f"Đang xử lý dự án: {contract_name} ({idx+1}/{total_contracts})")
-        progress_bar.progress((idx) / total_contracts)
+        status_text.text(f"Đang xử lý: {contract_name} ({idx+1}/{total_to_load})")
+        progress_bar.progress((idx) / total_to_load)
         
         # Load data (files + content)
         files = load_data_from_drive(contract_id)
-        
         aggs = calculate_aggregates(files) if files else {}
         
         for cat in categories:
@@ -143,6 +192,10 @@ def load_all_contracts_data_logic(selected_year, years_map):
                 'nhom_hang_tt': data.get('nhom_hang_tt', 0),
                 'nhom_percent': data.get('nhom_percent', 0)
             })
+    
+    # Update cache timestamps
+    st.session_state.cache_timestamps[str(selected_year)] = current_timestamps
+    st.session_state.cache_loaded_year = str(selected_year)
             
     progress_bar.empty()
     status_text.empty()
@@ -745,6 +798,11 @@ if 'years_map' not in st.session_state:
     st.session_state.years_map = {}
 if 'contracts_map' not in st.session_state:
     st.session_state.contracts_map = {}
+# Smart Cache: Store modification timestamps
+if 'cache_timestamps' not in st.session_state:
+    st.session_state.cache_timestamps = {}  # {year: {contract_id: modifiedTime}}
+if 'cache_loaded_year' not in st.session_state:
+    st.session_state.cache_loaded_year = None
 
 # ============================================================
 # SIDEBAR

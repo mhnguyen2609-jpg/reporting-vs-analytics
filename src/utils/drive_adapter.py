@@ -143,10 +143,42 @@ class GoogleDriveClient:
         if not self.service: return {}
         try:
             return self.service.files().get(
-                fileId=file_id, fields='id, name, mimeType').execute()
+                fileId=file_id, fields='id, name, mimeType, modifiedTime').execute()
         except Exception as e:
             print(f"Get Metadata Error: {e}")
             return {}
+
+    def get_folder_modified_times(self, folder_ids: list) -> Dict[str, str]:
+        """
+        Get modifiedTime for multiple folders in a single batch.
+        Returns dict: {folder_id: modifiedTime}
+        """
+        if not self.service or not folder_ids:
+            return {}
+        
+        result = {}
+        try:
+            # Use batch request for efficiency
+            batch = self.service.new_batch_http_request()
+            
+            def callback(request_id, response, exception):
+                if exception:
+                    print(f"Batch Error for {request_id}: {exception}")
+                else:
+                    result[request_id] = response.get('modifiedTime', '')
+            
+            for fid in folder_ids:
+                batch.add(
+                    self.service.files().get(fileId=fid, fields='id, modifiedTime'),
+                    request_id=fid,
+                    callback=callback
+                )
+            
+            batch.execute()
+        except Exception as e:
+            print(f"Batch Request Error: {e}")
+        
+        return result
 
     def read_excel(self, file_id: str) -> Optional[bytes]:
         """
