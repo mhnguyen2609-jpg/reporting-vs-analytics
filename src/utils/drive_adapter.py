@@ -132,7 +132,7 @@ class GoogleDriveClient:
             print(f"Drive List Files Error: {e}")
             return []
             
-            return []
+
             
     def get_file_metadata(self, file_id: str) -> Dict:
         """Get metadata (name, mimeType) for a file/folder."""

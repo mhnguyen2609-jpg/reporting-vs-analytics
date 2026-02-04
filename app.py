@@ -38,10 +38,10 @@ def natural_sort_key(s):
 
 # Initialize Drive Client
 @st.cache_resource
-def get_drive_client():
+def get_drive_client_v2():
     return GoogleDriveClient()
 
-drive_client = get_drive_client()
+drive_client = get_drive_client_v2()
 
 # ============================================================
 # HELPER FUNCTIONS (DRIVE)
