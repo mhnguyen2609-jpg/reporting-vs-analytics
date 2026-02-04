@@ -68,13 +68,14 @@ def scan_project_files(target_dir: str = DEFAULT_ROOT_PATH) -> List[Dict]:
                 })
     return results
 
-def scan_drive_files(drive_client: GoogleDriveClient, folder_id: str) -> List[Dict]:
+def scan_drive_files(drive_client: GoogleDriveClient, folder_id: str, folder_name: str = None) -> List[Dict]:
     """
-    Scans for Excel files in the specified Google Drive folder.
+    Recursively scans for Excel files in the specified Google Drive folder and its subfolders.
     
     Args:
         drive_client: Instance of GoogleDriveClient.
         folder_id: The Drive folder ID to scan (Contract folder ID).
+        folder_name: Optional folder name for context-aware identification.
         
     Returns:
         List of dictionaries containing file metadata:
@@ -85,24 +86,26 @@ def scan_drive_files(drive_client: GoogleDriveClient, folder_id: str) -> List[Di
         }
     """
     results = []
-    # Use list_excel_files from adapter
+    
+    # 1. Get all Excel files directly in this folder
     files = drive_client.list_excel_files(folder_id)
     
     for f in files:
         name = f['name']
         file_id = f['id']
-        # We don't strictly have 'folder_name' here unless we get parent info, 
-        # but identify_source_type mostly relies on filename. 
-        # If folder context is critical, we might need to pass it in.
-        # For now assuming filename is enough or we rely on the implementation.
-        source_type = identify_source_type(name)
+        source_type = identify_source_type(name, folder_name)
         
         if source_type:
             results.append({
                 'file_id': file_id,
                 'filename': name,
                 'source_type': source_type,
-                # 'folder': ... # We can pass the contract/parent folder name if needed?
             })
+    
+    # 2. Recursively scan subfolders
+    subfolders = drive_client.list_folders(folder_id)
+    for subfolder in subfolders:
+        sub_results = scan_drive_files(drive_client, subfolder['id'], subfolder['name'])
+        results.extend(sub_results)
             
     return results
