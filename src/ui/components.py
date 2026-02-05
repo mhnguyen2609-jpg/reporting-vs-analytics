@@ -308,7 +308,7 @@ def render_matrix_grids_html(matrix_df, details_map):
                      else if (st === 'Phát sinh' || st === 'Vượt KH' || st === 'Dư') {{ stClass = 'status-extra'; stIcon = '{Icons.STATUS_EXTRA} '; }}
                      
                      row += '<td style="text-align:center;">' + (d.date || d.creation_date || '') + '</td>';
-                     row += '<td class="' + stClass + '">' + stIcon + st + '</td>'; 
+                     row += '<td class="' + stClass + '" style="white-space: nowrap;">' + stIcon + st + '</td>'; 
                      row += '<td>' + (d.note || '') + '</td>';
                      row += '</tr>';
                      tbody.innerHTML += row;
