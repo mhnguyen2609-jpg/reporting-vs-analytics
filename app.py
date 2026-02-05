@@ -166,9 +166,15 @@ def save_shared_cache(year: str, data: list, timestamps: dict, year_folder_id: s
                 drive_client.write_sheet_data(spreadsheet_id, "Sheet1!AA1", [['METADATA_TIMESTAMPS', ts_json]])
                 
                 print(f"[OK] Cache saved to Sheets: {sheet_title}")
+                st.toast(f"✅ Cache đã được lưu lên Google Sheets!", icon='💾')
+            else:
+                 st.error(f"Failed to create/find spreadsheet '{sheet_title}' (ID is None)")
+        else:
+             st.error("Cannot save cache: Google Drive Service not initialized!")
         return True
     except Exception as e:
         print(f"Cache save error: {e}")
+        st.error(f"Lỗi khi lưu Cache: {e}")
         return False
 
 def load_shared_cache(year: str, year_folder_id: str = None) -> tuple:
