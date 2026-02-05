@@ -83,7 +83,27 @@ def get_contracts_for_year_drive(year_folder_id):
 def load_data_from_drive(contract_folder_id, progress_callback=None):
     """
     Downloads all Excel files in the contract folder and returns list of file dicts with 'content'.
+    Checks DETAILS CACHE first for instant access.
     """
+    # 1. Check Cache
+    if 'details_cache' in st.session_state and contract_folder_id in st.session_state.details_cache:
+        cached_files = st.session_state.details_cache.get(contract_folder_id, [])
+        if cached_files:
+            # Decode base64 strings back to bytes/BytesIO
+            import base64
+            decoded_files = []
+            for f in cached_files:
+                new_f = f.copy()
+                content = f.get('content')
+                if isinstance(content, str):
+                    try:
+                        new_f['content'] = base64.b64decode(content)
+                    except:
+                        pass # Keep as is if decode fails
+                decoded_files.append(new_f)
+            print(f"[CACHE HIT] Loaded details for {contract_folder_id}")
+            return decoded_files
+
     files_meta = scan_drive_files(drive_client, contract_folder_id)
     results = []
     total = len(files_meta)
@@ -122,11 +142,12 @@ def get_cache_path(year: str) -> Path:
 def get_timestamps_path(year: str) -> Path:
     return CACHE_DIR / f"timestamps_{year}.json"
 
-def save_shared_cache(year: str, data: list, timestamps: dict, year_folder_id: str = None):
-    """Save data to shared cache - local + Google Sheets."""
+def save_shared_cache(year: str, data: list, timestamps: dict, details: dict, year_folder_id: str = None):
+    """Save data to shared cache - local + Google Sheets + Details JSON."""
     
     def json_default(obj):
         import numpy as np
+        import base64
         if isinstance(obj, (np.int_, np.intc, np.intp, np.int8,
             np.int16, np.int32, np.int64, np.uint8,
             np.uint16, np.uint32, np.uint64)):
@@ -135,6 +156,8 @@ def save_shared_cache(year: str, data: list, timestamps: dict, year_folder_id: s
             return float(obj)
         elif isinstance(obj, (np.ndarray,)):
             return obj.tolist()
+        elif isinstance(obj, bytes):
+            return base64.b64encode(obj).decode('utf-8')
         raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
     try:
@@ -146,6 +169,7 @@ def save_shared_cache(year: str, data: list, timestamps: dict, year_folder_id: s
         
         # 2. Save to Google Sheets (for persistence)
         if year_folder_id and drive_client and drive_client.service:
+            # 2a. Save Main Data to Sheets
             sheet_title = f"CACHE_DB_{year}"
             
             # Find or Create Sheet
@@ -158,30 +182,31 @@ def save_shared_cache(year: str, data: list, timestamps: dict, year_folder_id: s
                 # Sheet 1: Data
                 data_values = []
                 if data:
-                    headers = list(data[0].keys())
-                    data_values.append(headers)
+                    header = list(data[0].keys())
+                    data_values.append(header)
                     for row in data:
-                        data_values.append([str(row.get(h, '')) for h in headers])
+                        data_values.append([str(row.get(k, '')) for k in header])
                 
+                drive_client.clear_sheet_range(spreadsheet_id, "Sheet1!A1:Z")
                 drive_client.write_sheet_data(spreadsheet_id, "Sheet1!A1", data_values)
                 
-                # Sheet 2: Timestamps (Store as JSON string in a single cell for simplicity)
-                # Or Key-Value pairs in Sheet2
-                ts_values = [['ContractID', 'ModifiedTime']]
-                for k, v in timestamps.items():
-                    ts_values.append([k, v])
-                
-                # Ensure Sheet2 exists (default only Sheet1) - For now just put in Sheet1 column Z? 
-                # Better: Just use 2 sheets. But creating sheet requires batchUpdate addSheet.
-                # Simplified: Save Timestamps in "timestamps" sheet if possible, else just specialized storage
-                # Let's simple: Save TS as JSON in Cell AA1 of Sheet1
+                # Save Timestamps in AA1
                 ts_json = json.dumps(timestamps, default=json_default)
                 drive_client.write_sheet_data(spreadsheet_id, "Sheet1!AA1", [['METADATA_TIMESTAMPS', ts_json]])
                 
                 print(f"[OK] Cache saved to Sheets: {sheet_title}")
-                st.toast(f"✅ Cache đã được lưu lên Google Sheets!", icon='💾')
+                
             else:
                  st.error(f"Failed to create/find spreadsheet '{sheet_title}' (ID is None)")
+
+            # 2b. Save Details Cache to JSON File (DETAILS_CACHE_{YEAR}.json)
+            if details:
+                details_filename = f"DETAILS_CACHE_{year}.json"
+                json_content = json.dumps(details, default=json_default, ensure_ascii=False)
+                drive_client.upload_json_file(year_folder_id, details_filename, json_content)
+                print(f"[OK] Details cache saved: {details_filename}")
+
+            st.toast(f"✅ Cache (Bảng + Chi tiết) đã được lưu!", icon='💾')
         else:
              st.error("Cannot save cache: Google Drive Service not initialized!")
         return True
@@ -190,22 +215,36 @@ def save_shared_cache(year: str, data: list, timestamps: dict, year_folder_id: s
         st.error(f"Lỗi khi lưu Cache: {e}")
         return False
 
+def get_details_cache_path(year: str) -> Path:
+    return CACHE_DIR / f"details_{year}.json"
+
 def load_shared_cache(year: str, year_folder_id: str = None) -> tuple:
     """
     Load data from shared cache. 
-    Priority: 1. Local cache (fast), 2. Google Sheets cache (persistent)
-    Returns (data, timestamps) or (None, None).
+    Priority: 1. Local cache (fast), 2. Google Sheets + Drive JSON (persistent)
+    Returns (data, timestamps, details) or (None, None, None).
     """
     # 1. Try local cache first
     try:
         cache_path = get_cache_path(year)
         ts_path = get_timestamps_path(year)
+        details_path = get_details_cache_path(year)
+        
         if cache_path.exists() and ts_path.exists():
             with open(cache_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             with open(ts_path, 'r', encoding='utf-8') as f:
                 timestamps = json.load(f)
-            return data, timestamps
+            
+            details = {}
+            if details_path.exists():
+                try:
+                    with open(details_path, 'r', encoding='utf-8') as f:
+                        details = json.load(f)
+                except Exception as e:
+                    print(f"Local details cache error: {e}")
+            
+            return data, timestamps, details
     except Exception as e:
         print(f"Local cache load error: {e}")
     
@@ -218,6 +257,7 @@ def load_shared_cache(year: str, year_folder_id: str = None) -> tuple:
             if spreadsheet_id:
                 # Read Data from Sheet1
                 raw_values = drive_client.read_sheet_data(spreadsheet_id, "Sheet1!A:Z")
+                # ... (Parsing logic same as before)
                 if raw_values and len(raw_values) > 1:
                     headers = raw_values[0]
                     data = []
@@ -240,23 +280,34 @@ def load_shared_cache(year: str, year_folder_id: str = None) -> tuple:
                             timestamps = json.loads(ts_json)
                         except:
                             print("Error parsing timestamps JSON from Sheet")
+                    
+                    # Read Details Cache from Drive JSON
+                    details = {}
+                    details_filename = f"DETAILS_CACHE_{year}.json"
+                    details_file_id = drive_client.find_file_in_folder(year_folder_id, details_filename)
+                    if details_file_id:
+                         details = drive_client.read_json_file(details_file_id) or {}
+                         print(f"[OK] Loaded Details Cache: {len(details)} items")
 
                     # Save to local cache for faster access next time
                     with open(get_cache_path(year), 'w', encoding='utf-8') as f:
                         json.dump(data, f, ensure_ascii=False)
                     with open(get_timestamps_path(year), 'w', encoding='utf-8') as f:
                         json.dump(timestamps, f, ensure_ascii=False)
+                    if details:
+                        with open(get_details_cache_path(year), 'w', encoding='utf-8') as f:
+                            json.dump(details, f, ensure_ascii=False)
                     
                     print(f"[OK] Cache loaded from Sheets: {sheet_title}")
-                    return data, timestamps
+                    return data, timestamps, details
         except Exception as e:
             print(f"Drive cache load error: {e}")
     
-    return None, None
+    return None, None, None
 
 def is_cache_valid(year: str, current_timestamps: dict, year_folder_id: str = None) -> bool:
     """Check if cached timestamps match current timestamps."""
-    _, cached_ts = load_shared_cache(year, year_folder_id)
+    _, cached_ts, _ = load_shared_cache(year, year_folder_id)
     if cached_ts is None:
         return False
     return cached_ts == current_timestamps
@@ -266,6 +317,7 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
     Smart caching loader that checks modification times before loading.
     Uses SHARED cache - all users see the same cached data.
     Only reloads contracts that have been modified since last load.
+    Also caches DETAILED file lists for instant timeline access.
     """
     year_id = years_map.get(str(selected_year))
     if not year_id: return []
@@ -274,7 +326,7 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
     categories = ['CAD', 'CNC', 'VÁN', 'VẬT TƯ', 'VẬT TƯ ƯU TIÊN']
     
     # Check SHARED cache first (from Drive or local)
-    cached_data, cached_timestamps = load_shared_cache(str(selected_year), year_id)
+    cached_data, cached_timestamps, cached_details = load_shared_cache(str(selected_year), year_id)
     
     # Get current modification times for all contracts
     contract_ids = list(contracts_map.values())
@@ -298,10 +350,15 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
             if old_ts != new_ts:
                 contracts_to_load.append(contract_name)
     
+    # Initialize updated collections
+    updated_details = cached_details if cached_details and not force_reload else {}
+
     # If nothing changed, use cached data
     if not contracts_to_load and cached_data:
         status_text.text("")
         st.toast("✅ Dữ liệu không thay đổi, dùng cache CHUNG!")
+        # Update session state details cache
+        st.session_state.details_cache = updated_details
         return cached_data
     
     # Show what we're doing
@@ -310,13 +367,11 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
     
     # Build result - start with cached data if partial reload
     all_rows = []
-    cached_contracts = set()
     
     if cached_data and not force_reload:
         for row in cached_data:
             if row['contract'] not in contracts_to_load:
                 all_rows.append(row)
-                cached_contracts.add(row['contract'])
     
     # Progress bar
     progress_bar = st.progress(0)
@@ -325,6 +380,7 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
     if total_to_load == 0:
         progress_bar.empty()
         status_text.empty()
+        st.session_state.details_cache = updated_details
         return all_rows
     
     for idx, contract_name in enumerate(contracts_to_load):
@@ -334,6 +390,11 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
         
         # Load data (files + content)
         files = load_data_from_drive(contract_id)
+        
+        # UPDATE DETAILS CACHE
+        if files:
+            updated_details[contract_id] = files
+            
         aggs = calculate_aggregates(files) if files else {}
         
         for cat in categories:
@@ -355,8 +416,11 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
                 'nhom_percent': data.get('nhom_percent', 0)
             })
     
+    # Update Session State Details Cache
+    st.session_state.details_cache = updated_details
+
     # Save to SHARED cache (local + Drive for persistence)
-    save_shared_cache(str(selected_year), all_rows, current_timestamps, year_id)
+    save_shared_cache(str(selected_year), all_rows, current_timestamps, updated_details, year_id)
     # Also update session state for quick access
     st.session_state.cache_loaded_year = str(selected_year)
             
@@ -966,6 +1030,8 @@ if 'cache_timestamps' not in st.session_state:
     st.session_state.cache_timestamps = {}  # {year: {contract_id: modifiedTime}}
 if 'cache_loaded_year' not in st.session_state:
     st.session_state.cache_loaded_year = None
+if 'details_cache' not in st.session_state:
+    st.session_state.details_cache = {}
 
 # ============================================================
 # SIDEBAR
@@ -996,9 +1062,11 @@ with st.sidebar:
         # Auto-load from SHARED cache on page load
         year_folder_id = YEAR_FOLDERS[selected_year]
         if st.session_state.master_data is None:
-            shared_data, _ = load_shared_cache(str(selected_year), year_folder_id)
+            shared_data, _, details = load_shared_cache(str(selected_year), year_folder_id)
             if shared_data:
                 st.session_state.master_data = shared_data
+                if details:
+                    st.session_state.details_cache = details
                 st.toast(f"⚡ Đã tải dữ liệu năm {selected_year} từ cache!")
         
         col1, col2 = st.columns(2)

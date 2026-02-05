@@ -299,14 +299,72 @@ class GoogleDriveClient:
         """Find a file by name in a specific folder. Returns file_id or None."""
         if not self.service: return None
         try:
-            query = f"'{folder_id}' in parents and name='{filename}' and trashed=false"
-            response = self.service.files().list(
-                q=query, fields='files(id, name)', pageSize=1).execute()
-            files = response.get('files', [])
-            return files[0]['id'] if files else None
+            query = f"'{folder_id}' in parents and name = '{filename}' and trashed = false"
+            results = self.service.files().list(q=query, spaces='drive', fields='files(id)').execute()
+            files = results.get('files', [])
+            if files:
+                return files[0]['id']
+            return None
         except Exception as e:
             print(f"Find File Error: {e}")
             return None
+
+    def upload_json_file(self, folder_id: str, filename: str, json_content: str) -> Optional[str]:
+        """Uploads (creates or updates) a JSON file in the specified folder."""
+        if not self.service: return None
+        
+        try:
+            # Check if file exists to update or create
+            file_id = self.find_file_in_folder(folder_id, filename)
+            
+            file_metadata = {
+                'name': filename,
+                'mimeType': 'application/json'
+            }
+            
+            media = MediaIoBaseUpload(io.BytesIO(json_content.encode('utf-8')), mimetype='application/json', resumable=True)
+            
+            if file_id:
+                # Update existing
+                file = self.service.files().update(
+                    fileId=file_id,
+                    media_body=media
+                ).execute()
+                print(f"[OK] Updated JSON file: {filename}")
+            else:
+                # Create new (Requires adding parent folder)
+                file_metadata['parents'] = [folder_id]
+                file = self.service.files().create(
+                    body=file_metadata,
+                    media_body=media,
+                    fields='id'
+                ).execute()
+                print(f"[OK] Created JSON file: {filename}")
+                file_id = file.get('id')
+                
+            return file_id
+        except Exception as e:
+            print(f"Upload JSON Error: {e}")
+            return None
+
+    def read_json_file(self, file_id: str) -> Optional[dict]:
+        """Downloads and parses a JSON file."""
+        if not self.service: return None
+        try:
+            request = self.service.files().get_media(fileId=file_id)
+            fh = io.BytesIO()
+            downloader = MediaIoBaseDownload(fh, request)
+            done = False
+            while done is False:
+                status, done = downloader.next_chunk()
+            
+            content = fh.getvalue().decode('utf-8')
+            return json.loads(content)
+        except Exception as e:
+            print(f"Read JSON Error ({file_id}): {e}")
+            return None
+
+
     
     def download_text_file(self, file_id: str) -> Optional[str]:
         """Download a text file and return its content as string."""
