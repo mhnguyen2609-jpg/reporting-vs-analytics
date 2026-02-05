@@ -720,37 +720,42 @@ def get_all_product_details(file_list: List[Dict]) -> Dict[str, List[Dict]]:
             xuat_data = xuat_items.get(item_name, {})
             qty_xuat = xuat_data.get('quantity', 0) if xuat_data else 0
             
+            # Calculation Reform:
+            # "Số lượng" -> DMVT (qty_xuat) - Actual Used
+            # "Tồn" -> DMVTN (Plan) - DMVT (Used). (Remaining Budget)
+            # If Positive: Still have budget/plan to execute.
+            # If Negative: Over budget/plan.
+            
+            remaining = qty_nhap - qty_xuat
+            
             # Calculate status
             if qty_xuat == qty_nhap:
                 status = 'Hoàn thành'
                 status_code = 'done'
             elif qty_xuat < qty_nhap:
-                status = 'Thiếu'
-                status_code = 'missing'
+                # Used less than Plan -> In Progress / Remaining
+                status = 'Đang làm' 
+                status_code = 'missing' # Keep code for color mapping (yellow/red)
             else:  # qty_xuat > qty_nhap
+                # Used more than Plan -> Extra / Over
                 status = 'Phát sinh'
                 status_code = 'extra'
             
             # Use DMVT's creation_date as completion date (Ngày hoàn thành)
             completion_date = xuat_data.get('creation_date', '') if xuat_data else ''
-            
-            # Request: 
-            # "Số lượng" -> DMVT (qty_xuat)
-            # "Tồn" -> DMVT - DMVTN (qty_xuat - qty_nhap)
-            remaining = qty_xuat - qty_nhap
-            
+             
             product_name = ten_sp_map.get(key, '')
 
             all_details[key].append({
                 'category': nhap_data['category'],
                 'item_name': nhap_data['item_name'],
                 'product_name': product_name,
-                'quantity': qty_xuat,  # Requested: display DMVT quantity
-                'plan_quantity': qty_nhap, # Store plan quantity just in case
-                'remaining': remaining,    # Requested: DMVT - DMVTN
+                'quantity': qty_xuat,  # Actual Used
+                'plan_quantity': qty_nhap, # Planned
+                'remaining': remaining,    # Plan - Used
                 'unit': nhap_data.get('unit', ''),
-                'creation_date': nhap_data.get('creation_date', ''),  # Ngày lập DS from DMVTN
-                'date': completion_date,  # Ngày hoàn thành from DMVT
+                'creation_date': nhap_data.get('creation_date', ''),
+                'date': completion_date,
                 'status': status,
                 'status_code': status_code,
                 'note': nhap_data.get('note', ''),

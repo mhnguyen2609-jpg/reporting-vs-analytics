@@ -2150,13 +2150,22 @@ def render_matrix_grids_html(matrix_df, details_map):
                         row += '<td class="product-cell" rowspan="' + totalRows + '" style="font-weight:normal; font-size:12px; width:150px;">' + productNameStr + '</td>';
                         firstRow = false;
                     }}
-                     row += '<td>' + (d.item_name || d.name || d.product_name || '') + '</td>';
+                     // DEBUG: If name is missing, show whole object to see what's wrong
+                     var nameVal = d.item_name || d.name || d.product_name;
+                     if (!nameVal) {
+                         nameVal = "ERR: " + Object.keys(d).join(",");
+                     }
+                     row += '<td>' + nameVal + '</td>';
                      row += '<td style="text-align:center;">' + (d.quantity || 0) + '</td>';
                      
                      // Remaining / Tồn logic
+                     // If using calculator.py's current (Xuat - Nhap), negative means "Left to do" (if Plan > Used)
+                     // User likely wants "Tồn kho" (Inventory) = Plan - Used.
+                     // But let's stick to reading 'remaining' and just interpreting it correctly.
                      var rem = (d.remaining !== undefined) ? d.remaining : (d.stock || 0);
+                     
                      var remColor = '#94a3b8'; // gray
-                     if (rem < 0) remColor = '#ef4444'; // red (missing)
+                     if (rem < 0) remColor = '#ef4444'; // red (missing/incomplete)
                      else if (rem > 0) remColor = '#facc15'; // yellow (extra/stock)
                      
                      row += '<td style="text-align:center; font-weight:bold; color:' + remColor + ';">' + rem + '</td>';
@@ -2176,12 +2185,12 @@ def render_matrix_grids_html(matrix_df, details_map):
                      if (sc === 'done' || stText === 'Hoàn thành' || stText === 'Đủ') {{
                          statusClass = 'status-done';
                          statusIcon = '✔';
-                     }} else if (sc === 'missing' || stText === 'Thiếu' || (rem < 0)) {{
-                         statusClass = 'status-missing';
-                         statusIcon = '✖';
-                     }} else if (sc === 'extra' || stText === 'Dư' || stText === 'Phát sinh') {{
+                     }} else if (sc === 'missing' || stText === 'Đang làm' || (rem > 0)) {{
                          statusClass = 'status-extra';
-                         statusIcon = '➚';
+                         statusIcon = '⏳';
+                     }} else if (sc === 'extra' || stText === 'Phát sinh' || stText === 'Vượt KH' || (rem < 0)) {{
+                         statusClass = 'status-missing';
+                         statusIcon = '⚠';
                      }}
                      
                      row += '<td class="' + statusClass + '">' + (statusIcon || stText) + '</td>';
@@ -2219,12 +2228,12 @@ def render_matrix_grids_html(matrix_df, details_map):
                      if (sc === 'done' || stText === 'Hoàn thành' || stText === 'Đủ') {{
                          statusClass = 'status-done';
                          statusIcon = '✔';
-                     }} else if (sc === 'missing' || stText === 'Thiếu' || (rem < 0)) {{
-                         statusClass = 'status-missing';
-                         statusIcon = '✖';
-                     }} else if (sc === 'extra' || stText === 'Dư' || stText === 'Phát sinh') {{
+                     }} else if (sc === 'missing' || stText === 'Đang làm' || (rem > 0)) {{
                          statusClass = 'status-extra';
-                         statusIcon = '➚';
+                         statusIcon = '⏳';
+                     }} else if (sc === 'extra' || stText === 'Phát sinh' || stText === 'Vượt KH' || (rem < 0)) {{
+                         statusClass = 'status-missing';
+                         statusIcon = '⚠';
                      }}
 
                      row += '<td class="' + statusClass + '">' + (statusIcon || stText) + '</td>';
