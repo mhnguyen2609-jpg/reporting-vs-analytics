@@ -2196,7 +2196,7 @@ def render_matrix_grids_html(matrix_df, details_map):
                          row += '<td class="product-cell" rowspan="' + totalRows + '">' + productCode + '</td>';
                          row += '<td class="product-cell" rowspan="' + totalRows + '" style="font-weight:normal; font-size:12px; width:150px;">' + productNameStr + '</td>';
                          firstRow = false;
-                     }
+                     }}
                      row += '<td>' + (d.item_name || d.name || d.product_name || '') + '</td>';
                      row += '<td style="text-align:center;">' + (d.quantity || 0) + '</td>';
                      
