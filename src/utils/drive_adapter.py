@@ -226,7 +226,10 @@ class GoogleDriveClient:
     
     def create_sheet(self, folder_id: str, title: str) -> Optional[str]:
         """Create a new Google Sheet in the specified folder. Returns Spreadsheet ID."""
-        if not self.sheets_service: return None
+        if not self.sheets_service: 
+            import streamlit as st
+            st.error("Sheets Service is not initialized.")
+            return None
         try:
             # 1. Create Spreadsheet
             spreadsheet = {'properties': {'title': title}}
@@ -248,6 +251,8 @@ class GoogleDriveClient:
             return spreadsheet_id
         except Exception as e:
             print(f"Create Sheet Error: {e}")
+            import streamlit as st
+            st.error(f"Lỗi tạo Google Sheet: {e}")
             return None
 
     def write_sheet_data(self, spreadsheet_id: str, range_name: str, values: List[List]):
