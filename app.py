@@ -123,7 +123,7 @@ def get_timestamps_path(year: str) -> Path:
     return CACHE_DIR / f"timestamps_{year}.json"
 
 def save_shared_cache(year: str, data: list, timestamps: dict, year_folder_id: str = None):
-    """Save data to shared cache - both local and Google Drive."""
+    """Save data to shared cache - local + Google Sheets."""
     try:
         # 1. Save locally first (for quick access)
         with open(get_cache_path(year), 'w', encoding='utf-8') as f:
@@ -131,13 +131,41 @@ def save_shared_cache(year: str, data: list, timestamps: dict, year_folder_id: s
         with open(get_timestamps_path(year), 'w', encoding='utf-8') as f:
             json.dump(timestamps, f, ensure_ascii=False)
         
-        # 2. Save to Google Drive (for persistence across restarts)
+        # 2. Save to Google Sheets (for persistence)
         if year_folder_id and drive_client and drive_client.service:
-            data_json = json.dumps(data, ensure_ascii=False)
-            ts_json = json.dumps(timestamps, ensure_ascii=False)
-            drive_client.upload_file(year_folder_id, CACHE_DATA_FILENAME, data_json)
-            drive_client.upload_file(year_folder_id, CACHE_TIMESTAMPS_FILENAME, ts_json)
-            print(f"[OK] Cache saved to Drive: Year {year}")
+            sheet_title = f"CACHE_DB_{year}"
+            
+            # Find or Create Sheet
+            spreadsheet_id = drive_client.find_file_in_folder(year_folder_id, sheet_title)
+            if not spreadsheet_id:
+                spreadsheet_id = drive_client.create_sheet(year_folder_id, sheet_title)
+            
+            if spreadsheet_id:
+                # Prepare Data for Sheet (Flatten to 2D array)
+                # Sheet 1: Data
+                data_values = []
+                if data:
+                    headers = list(data[0].keys())
+                    data_values.append(headers)
+                    for row in data:
+                        data_values.append([str(row.get(h, '')) for h in headers])
+                
+                drive_client.write_sheet_data(spreadsheet_id, "Sheet1!A1", data_values)
+                
+                # Sheet 2: Timestamps (Store as JSON string in a single cell for simplicity)
+                # Or Key-Value pairs in Sheet2
+                ts_values = [['ContractID', 'ModifiedTime']]
+                for k, v in timestamps.items():
+                    ts_values.append([k, v])
+                
+                # Ensure Sheet2 exists (default only Sheet1) - For now just put in Sheet1 column Z? 
+                # Better: Just use 2 sheets. But creating sheet requires batchUpdate addSheet.
+                # Simplified: Save Timestamps in "timestamps" sheet if possible, else just specialized storage
+                # Let's simple: Save TS as JSON in Cell AA1 of Sheet1
+                ts_json = json.dumps(timestamps)
+                drive_client.write_sheet_data(spreadsheet_id, "Sheet1!AA1", [['METADATA_TIMESTAMPS', ts_json]])
+                
+                print(f"[OK] Cache saved to Sheets: {sheet_title}")
         return True
     except Exception as e:
         print(f"Cache save error: {e}")
@@ -146,7 +174,7 @@ def save_shared_cache(year: str, data: list, timestamps: dict, year_folder_id: s
 def load_shared_cache(year: str, year_folder_id: str = None) -> tuple:
     """
     Load data from shared cache. 
-    Priority: 1. Local cache (fast), 2. Google Drive cache (persistent)
+    Priority: 1. Local cache (fast), 2. Google Sheets cache (persistent)
     Returns (data, timestamps) or (None, None).
     """
     # 1. Try local cache first
@@ -162,24 +190,45 @@ def load_shared_cache(year: str, year_folder_id: str = None) -> tuple:
     except Exception as e:
         print(f"Local cache load error: {e}")
     
-    # 2. Try Google Drive cache (if local not found)
+    # 2. Try Google Sheets cache (if local not found)
     if year_folder_id and drive_client and drive_client.service:
         try:
-            data_file_id = drive_client.find_file_in_folder(year_folder_id, CACHE_DATA_FILENAME)
-            ts_file_id = drive_client.find_file_in_folder(year_folder_id, CACHE_TIMESTAMPS_FILENAME)
+            sheet_title = f"CACHE_DB_{year}"
+            spreadsheet_id = drive_client.find_file_in_folder(year_folder_id, sheet_title)
             
-            if data_file_id and ts_file_id:
-                data_json = drive_client.download_text_file(data_file_id)
-                ts_json = drive_client.download_text_file(ts_file_id)
-                if data_json and ts_json:
-                    data = json.loads(data_json)
-                    timestamps = json.loads(ts_json)
+            if spreadsheet_id:
+                # Read Data from Sheet1
+                raw_values = drive_client.read_sheet_data(spreadsheet_id, "Sheet1!A:Z")
+                if raw_values and len(raw_values) > 1:
+                    headers = raw_values[0]
+                    data = []
+                    for row in raw_values[1:]:
+                        if not row: continue
+                        item = {}
+                        for i, h in enumerate(headers):
+                            if i < len(row):
+                                item[h] = row[i]
+                            else:
+                                item[h] = ""
+                        data.append(item)
+                    
+                    # Read Timestamps from AA1
+                    ts_values = drive_client.read_sheet_data(spreadsheet_id, "Sheet1!AA1")
+                    timestamps = {}
+                    if ts_values and len(ts_values) > 0 and len(ts_values[0]) > 1:
+                        try:
+                            ts_json = ts_values[0][1] # METADATA_TIMESTAMPS, {json}
+                            timestamps = json.loads(ts_json)
+                        except:
+                            print("Error parsing timestamps JSON from Sheet")
+
                     # Save to local cache for faster access next time
                     with open(get_cache_path(year), 'w', encoding='utf-8') as f:
                         json.dump(data, f, ensure_ascii=False)
                     with open(get_timestamps_path(year), 'w', encoding='utf-8') as f:
                         json.dump(timestamps, f, ensure_ascii=False)
-                    print(f"[OK] Cache loaded from Drive: Year {year}")
+                    
+                    print(f"[OK] Cache loaded from Sheets: {sheet_title}")
                     return data, timestamps
         except Exception as e:
             print(f"Drive cache load error: {e}")

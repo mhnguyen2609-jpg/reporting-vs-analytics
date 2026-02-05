@@ -65,6 +65,7 @@ class GoogleDriveClient:
         
         if self.creds:
             self.service = build('drive', 'v3', credentials=self.creds)
+            self.sheets_service = build('sheets', 'v4', credentials=self.creds)
             print("[OK] Drive Client: Service initialized successfully")
         else:
             print("[ERROR] Warning: No valid credentials found. Drive features will not work.")
@@ -195,8 +196,72 @@ class GoogleDriveClient:
                 status, done = downloader.next_chunk()
             return fh.getvalue()
         except Exception as e:
-            print(f"Drive Read Error ({file_id}): {e}")
+
+    # ============================================================
+    # GOOGLE SHEETS METHODS (CACHE DB)
+    # ============================================================
+    
+    def create_sheet(self, folder_id: str, title: str) -> Optional[str]:
+        """Create a new Google Sheet in the specified folder. Returns Spreadsheet ID."""
+        if not self.sheets_service: return None
+        try:
+            # 1. Create Spreadsheet
+            spreadsheet = {'properties': {'title': title}}
+            spreadsheet = self.sheets_service.spreadsheets().create(body=spreadsheet, fields='spreadsheetId').execute()
+            spreadsheet_id = spreadsheet.get('spreadsheetId')
+            
+            # 2. Key Step: Move it to the correct folder
+            # New files are created in root. Need to add parent folder and remove from root.
+            file = self.service.files().get(fileId=spreadsheet_id, fields='parents').execute()
+            previous_parents = ",".join(file.get('parents'))
+            self.service.files().update(
+                fileId=spreadsheet_id,
+                addParents=folder_id,
+                removeParents=previous_parents,
+                fields='id, parents'
+            ).execute()
+            
+            print(f"[OK] Created Sheet '{title}' in folder '{folder_id}'")
+            return spreadsheet_id
+        except Exception as e:
+            print(f"Create Sheet Error: {e}")
             return None
+
+    def write_sheet_data(self, spreadsheet_id: str, range_name: str, values: List[List]):
+        """Write 2D list to specific range."""
+        if not self.sheets_service: return False
+        try:
+            body = {'values': values}
+            self.sheets_service.spreadsheets().values().update(
+                spreadsheetId=spreadsheet_id, range=range_name,
+                valueInputOption='RAW', body=body
+            ).execute()
+            return True
+        except Exception as e:
+            print(f"Write Sheet Error: {e}")
+            return False
+
+    def read_sheet_data(self, spreadsheet_id: str, range_name: str) -> List[List]:
+        """Read 2D list from specific range."""
+        if not self.sheets_service: return []
+        try:
+            result = self.sheets_service.spreadsheets().values().get(
+                spreadsheetId=spreadsheet_id, range=range_name).execute()
+            return result.get('values', [])
+        except Exception as e:
+            print(f"Read Sheet Error: {e}")
+            return []
+    
+    def clear_sheet_range(self, spreadsheet_id: str, range_name: str):
+        """Clear values in range."""
+        if not self.sheets_service: return False
+        try:
+            self.sheets_service.spreadsheets().values().clear(
+                spreadsheetId=spreadsheet_id, range=range_name).execute()
+            return True
+        except Exception as e:
+            print(f"Clear Sheet Error: {e}")
+            return False
 
     # ============================================================
     # CACHE PERSISTENCE METHODS
