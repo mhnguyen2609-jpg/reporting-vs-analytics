@@ -1462,12 +1462,12 @@ def render_matrix_grids_html(matrix_df, details_map):
                  // Logic to render grouped rows (omitted for brevity, relying on previous logic or simplified for now)
                  // RE-IMPLEMENTING BASIC RENDER LOOP FOR DETAILS
                  
-                 details.forEach(function(d, i) {
+                 details.forEach(function(d, i) {{
                      var row = '<tr>';
-                     if (i===0) {
+                     if (i===0) {{
                          row += '<td rowspan="' + details.length + '">' + productCode + '</td>';
                          row += '<td rowspan="' + details.length + '">' + (d.product_name || '') + '</td>';
-                     }
+                     }}
                      row += '<td>' + d.name + '</td>';
                      row += '<td style="text-align:center;">' + (d.quantity || 0) + '</td>';
                      row += '<td style="text-align:center;">' + (d.stock || 0) + '</td>';
@@ -1478,7 +1478,7 @@ def render_matrix_grids_html(matrix_df, details_map):
                      row += '<td>' + (d.note || '') + '</td>';
                      row += '</tr>';
                      tbody.innerHTML += row;
-                 });
+                 }});
             }}
         }}
     </script>
