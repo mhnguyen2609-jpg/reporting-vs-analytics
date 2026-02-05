@@ -995,28 +995,11 @@ with st.sidebar:
         
         # Auto-load from SHARED cache on page load
         year_folder_id = YEAR_FOLDERS[selected_year]
-        
-        # DEBUG: Check if cache exists
-        cache_sheet_id = drive_client.find_file_in_folder(year_folder_id, f"CACHE_DB_{selected_year}")
-        if cache_sheet_id:
-            st.caption(f"✅ Cache found (ID: {cache_sheet_id[:5]}...)")
-        else:
-            st.caption("⚠️ Cache not found. Please Load Data to create it.")
-            
-        # DEBUG: AUTH STATUS
-        if drive_client.sheets_service:
-            st.caption("✅ Sheets Service: Connected")
-        else:
-            st.error("❌ Sheets Service: Disconnected (Check Auth)")
-            
         if st.session_state.master_data is None:
             shared_data, _ = load_shared_cache(str(selected_year), year_folder_id)
             if shared_data:
                 st.session_state.master_data = shared_data
                 st.toast(f"⚡ Đã tải dữ liệu năm {selected_year} từ cache!")
-            else:
-                if cache_sheet_id:
-                     st.error("❌ Tìm thấy Cache nhưng không đọc được!")
         
         col1, col2 = st.columns(2)
         with col1:
@@ -1024,8 +1007,7 @@ with st.sidebar:
                 with st.spinner("Đang kiểm tra và tải..."):
                     st.session_state.master_data = load_all_contracts_data_logic(selected_year, YEAR_FOLDERS)
                     st.success(f"✅ Đã tải năm {selected_year}!")
-                    # REMOVED RERUN FOR DEBUGGING
-                    # st.rerun()
+                    st.rerun()
         with col2:
             if st.button("🔃 Làm mới", use_container_width=True, help="Bỏ qua cache, tải lại toàn bộ"):
                 with st.spinner("Đang tải lại toàn bộ..."):
