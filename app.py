@@ -24,7 +24,8 @@ from src.core.cache_manager import (
     load_all_contracts_data_logic, 
     get_available_years_local, 
     get_contracts_for_year_local, 
-    load_all_contracts_data_local
+    load_all_contracts_data_local,
+    load_shared_cache
 )
 
 # ============================================================
