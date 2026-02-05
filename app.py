@@ -2171,6 +2171,7 @@ def render_matrix_grids_html(matrix_df, details_map):
                 
                 for (var i = 0; i < vtPrio.length; i++) {{
                     var d = vtPrio[i];
+                    console.log('[DEBUG JS vtPrio]', JSON.stringify(d));
                     var row = '<tr>';
                     if (firstRow) {{
                         row += '<td class="product-cell" rowspan="' + totalRows + '">' + productCode + '</td>';
