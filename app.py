@@ -2150,10 +2150,17 @@ def render_matrix_grids_html(matrix_df, details_map):
                         row += '<td class="product-cell" rowspan="' + totalRows + '" style="font-weight:normal; font-size:12px; width:150px;">' + productNameStr + '</td>';
                         firstRow = false;
                     }}
-                     // DEBUG: If name is missing, show whole object to see what's wrong
-                     var nameVal = d.item_name || d.name || d.product_name;
-                     if (!nameVal) {{
-                         nameVal = "ERR: " + Object.keys(d).join(",");
+                     // DEBUG: Robust check for name - catch 'undefined' string too
+                     var nameVal = d.item_name;
+                     if (!nameVal || nameVal === 'undefined' || nameVal === '') {{
+                         nameVal = d.name;
+                     }}
+                     if (!nameVal || nameVal === 'undefined' || nameVal === '') {{
+                         nameVal = d.product_name;
+                     }}
+                     if (!nameVal || nameVal === 'undefined' || nameVal === '') {{
+                         // Show full object for debugging
+                         nameVal = "DEBUG: " + JSON.stringify(d).substring(0, 100);
                      }}
                      row += '<td>' + nameVal + '</td>';
                      row += '<td style="text-align:center;">' + (d.quantity || 0) + '</td>';
@@ -2206,7 +2213,18 @@ def render_matrix_grids_html(matrix_df, details_map):
                          row += '<td class="product-cell" rowspan="' + totalRows + '" style="font-weight:normal; font-size:12px; width:150px;">' + productNameStr + '</td>';
                          firstRow = false;
                      }}
-                     row += '<td>' + (d.item_name || d.name || d.product_name || '') + '</td>';
+                     // DEBUG: Robust check for name - catch 'undefined' string too
+                     var nameVal = d.item_name;
+                     if (!nameVal || nameVal === 'undefined' || nameVal === '') {{
+                         nameVal = d.name;
+                     }}
+                     if (!nameVal || nameVal === 'undefined' || nameVal === '') {{
+                         nameVal = d.product_name;
+                     }}
+                     if (!nameVal || nameVal === 'undefined' || nameVal === '') {{
+                         nameVal = "DEBUG: " + JSON.stringify(d).substring(0, 100);
+                     }}
+                     row += '<td>' + nameVal + '</td>';
                      row += '<td style="text-align:center;">' + (d.quantity || 0) + '</td>';
                      
                      var rem = (d.remaining !== undefined) ? d.remaining : (d.stock || 0);
