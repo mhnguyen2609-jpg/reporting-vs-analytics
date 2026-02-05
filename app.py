@@ -1151,6 +1151,297 @@ else:
 # TIMELINE & MATRIX SECTION (RENDER PER CONTRACT)
 # ============================================================
 
+def render_matrix_grids_html(matrix_df, details_map):
+    """Render matrix using CSS Grid - 4 columns, click expands full-width detail row inline."""
+    if matrix_df.empty:
+        return "<p>Không có dữ liệu Matrix.</p>"
+    
+    products = matrix_df.index.tolist()
+    total = len(products)
+    items_per_group = 25
+    num_groups = math.ceil(total / items_per_group)
+    
+    # Organize products into groups (columns)
+    groups = []
+    for g in range(num_groups):
+        start_idx = g * items_per_group
+        end_idx = min((g + 1) * items_per_group, total)
+        groups.append(products[start_idx:end_idx])
+    
+    # Find max rows needed
+    max_rows = max(len(g) for g in groups) if groups else 0
+    
+    headers = ['Mã SP', 'Tên SP', 'CAD', 'ĐẶT HÀNG', 'CNC', 'Vật tư ưu tiên', 'Vật tư']
+    
+    def get_cell_style(delta):
+        # delta = TC - TT
+        if delta == 0: return ('✔', '#1E88E5')   # TT = TC: Complete (blue)
+        elif delta < 0: return ('➚', '#FFEB3B')  # TT > TC: Exceeded (yellow)
+        else: return ('✖', '#F44336')            # TT < TC: Incomplete (red)
+    
+    # Prepare details JSON for JavaScript
+    import json
+    details_json = json.dumps(details_map, ensure_ascii=False, default=str)
+    
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <style>
+        * {{ box-sizing: border-box; font-family: Arial, sans-serif; }}
+        body {{ margin: 0; padding: 10px; background: transparent; }}
+        
+        .matrix-grid {{
+            display: grid;
+            grid-template-columns: repeat({num_groups}, 1fr);
+            gap: 10px;
+        }}
+        
+        .grid-column {{
+            display: flex;
+            flex-direction: column;
+        }}
+        
+        .column-header {{
+            display: grid;
+            grid-template-columns: 90px 220px repeat(5, 32px);
+            align-items: center;
+            background: #1e3a5f;
+            border: 1px solid #334155;
+        }}
+        
+        .column-header span {{
+            color: #e2e8f0;
+            font-size: 10px;
+            font-weight: 600;
+            text-align: center;
+            padding: 3px 2px;
+            border-right: 1px solid #334155;
+        }}
+        
+        .column-header span:nth-child(n+1) {{ text-align: center; }}
+        
+        .column-header span:nth-child(n+3) {{
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            transform: rotate(180deg);
+            height: 70px;
+        }}
+        
+        .product-row {{
+            display: grid;
+            grid-template-columns: 90px 220px repeat(5, 32px);
+            border: 1px solid #334155;
+            align-items: stretch; /* Ensure cells stretch to full height */
+            border-top: none;
+            background: #0f172a;
+            color: #cbd5e1;
+            font-size: 11px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }}
+        
+        .product-row:hover {{
+            background: #334155;
+        }}
+        
+        .product-row.selected {{
+            background: #3b82f6 !important;
+            color: white !important;
+        }}
+        
+        .product-row span {{
+            padding: 4px 2px;
+            display: flex; /* Use flexbox for centering */
+            align-items: center;
+            justify-content: center;
+            border-right: 1px solid #334155;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }}
+        
+        .detail-row {{
+            grid-column: 1 / -1; /* Span all columns */
+            background: #1e293b;
+            border: 1px solid #475569;
+            margin-bottom: 10px;
+            padding: 10px;
+            display: none; /* Hidden by default */
+        }}
+        
+        .detail-table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            color: #e2e8f0;
+        }}
+        
+        .detail-table th {{
+            background: #334155;
+            padding: 5px;
+            text-align: left;
+            border: 1px solid #475569;
+        }}
+        
+        .detail-table td {{
+            padding: 5px;
+            border: 1px solid #475569;
+        }}
+
+        .status-ok {{ background-color: #4CAF50 !important; color: white; text-align: center; font-weight: 600; }}
+        .status-missing {{ background-color: #F44336 !important; color: white; text-align: center; font-weight: 600; }}
+        .status-extra {{ background-color: #FFEB3B !important; color: #333; text-align: center; font-weight: 600; }}
+        
+        .empty-cell {{
+            visibility: hidden;
+            height: 22px;
+        }}
+    </style>
+    <script>
+        var allDetails = {details_json};
+        var selectedRow = null;
+        var activeDetailRow = null;
+        
+        function showDetail(productCode, rowElement, detailRowId) {{
+            // Deselect previous
+            if (selectedRow) {{
+                selectedRow.classList.remove('selected');
+            }}
+            if (activeDetailRow) {{
+                activeDetailRow.style.display = 'none';
+            }}
+            
+            // Toggle off if clicking same row
+            if (selectedRow === rowElement) {{
+                selectedRow = null;
+                activeDetailRow = null;
+                return;
+            }}
+            
+            // Select new
+            rowElement.classList.add('selected');
+            selectedRow = rowElement;
+            
+            var detailRow = document.getElementById(detailRowId);
+            detailRow.style.display = 'block';
+            activeDetailRow = detailRow;
+            
+            var tbody = detailRow.querySelector('.detail-tbody');
+            var details = allDetails[productCode] || [];
+            
+            tbody.innerHTML = '';
+            
+            if (details.length === 0) {{
+                tbody.innerHTML = '<tr><td class="product-cell">' + productCode + '</td><td colspan="9" style="text-align:center; color:#94a3b8;">Chưa có dữ liệu chi tiết</td></tr>';
+            }} else {{
+                var cadItems = details.filter(function(d) {{ return d.category === 'CAD'; }});
+                
+                var totalRows = details.length;
+                 
+                 details.forEach(function(d, i) {{
+                     var row = '<tr>';
+                     if (i===0) {{
+                         row += '<td rowspan="' + details.length + '">' + productCode + '</td>';
+                         row += '<td rowspan="' + details.length + '">' + (d.product_name || '') + '</td>';
+                     }}
+                     row += '<td>' + d.name + '</td>';
+                     row += '<td style="text-align:center;">' + (d.quantity || 0) + '</td>';
+                     row += '<td style="text-align:center;">' + (d.stock || 0) + '</td>';
+                     row += '<td style="text-align:center;">' + (d.unit || '') + '</td>';
+                     row += '<td style="text-align:center;">' + (d.date || '') + '</td>';
+                     
+                     var st = d.status || '';
+                     var stClass = '';
+                     if (st === 'OK' || st === 'Đủ') stClass = 'status-ok';
+                     else if (st === 'Thiếu') stClass = 'status-missing';
+                     else if (st === 'Dư') stClass = 'status-extra';
+                     
+                     row += '<td class="' + stClass + '">' + st + '</td>';
+                     row += '<td class="' + stClass + '">' + st + '</td>'; 
+                     row += '<td>' + (d.note || '') + '</td>';
+                     row += '</tr>';
+                     tbody.innerHTML += row;
+                 }});
+            }}
+        }}
+    </script>
+    </head>
+    <body>
+    """
+    
+    for row_idx in range(max_rows):
+        # Start a visual row container
+        html += '<div class="matrix-grid">'
+        
+        # Add header if first row
+        if row_idx == 0:
+            for g in range(num_groups):
+                html += '<div class="column-header">'
+                for h in headers:
+                    html += f'<span>{h}</span>'
+                html += '</div>'
+            html += '</div><div class="matrix-grid">'
+        
+        # Add product cells for each group
+        for g in range(num_groups):
+            if row_idx < len(groups[g]):
+                prod = groups[g][row_idx]
+                row_data = matrix_df.loc[prod] if prod in matrix_df.index else {}
+                
+                def get_cell(tc_key, tt_key):
+                    tc = row_data.get(tc_key, 0)
+                    tt = row_data.get(tt_key, 0)
+                    if tc > 0:
+                        icon, color = get_cell_style(tc - tt)
+                        return f'<span style="background:{color};">{icon}</span>'
+                    return '<span class="cell-empty"></span>'
+                
+                safe_prod = prod.replace("'", "\\'").replace('"', '\\"')
+                detail_row_id = f'detail_row_{row_idx}'
+                
+                html += f'<div class="grid-column"><div class="product-row" onclick="showDetail(\'{safe_prod}\', this, \'{detail_row_id}\')">'
+                html += f'<span>{prod}</span>'
+                html += f'<span style="text-align:left !important; padding-left:4px; font-weight:normal;" title="{row_data.get("TEN_SP", "")}">{row_data.get("TEN_SP", "")}</span>'
+                html += get_cell('CAD_TC', 'CAD_TT')
+                html += get_cell('DAT_HANG_TC', 'DAT_HANG_TT')
+                html += get_cell('CNC_TC', 'CNC_TT')
+                html += get_cell('VAT_TU_UU_TIEN_TC', 'VAT_TU_UU_TIEN_TT')
+                html += get_cell('VAT_TU_TC', 'VAT_TU_TT')
+                html += '</div></div>'
+            else:
+                # Empty placeholder for alignment
+                html += '<div class="grid-column"><div class="product-row empty-cell"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>'
+        
+        html += '</div>'  # End matrix-grid row
+        
+        # Add detail row placeholder (full-width, hidden by default)
+        detail_row_id = f'detail_row_{row_idx}'
+        html += f'''
+        <div id="{detail_row_id}" class="detail-row">
+            <table class="detail-table">
+                <thead>
+                    <tr>
+                        <th style="width:90px;">Mã SP</th>
+                        <th>TÊN SP</th>
+                        <th>TÊN HÀNG</th>
+                        <th style="width:60px;">SỐ LƯỢNG</th>
+                        <th style="width:50px;">TỒN</th>
+                        <th style="width:55px;">ĐƠN VỊ</th>
+                        <th style="width:100px;">NGÀY LẬP DS</th>
+                        <th style="width:100px;">HOÀN THÀNH</th>
+                        <th style="width:85px;">TRẠNG THÁI</th>
+                        <th style="width:100px;">GHI CHÚ</th>
+                    </tr>
+                </thead>
+                <tbody class="detail-tbody"></tbody>
+            </table>
+        </div>
+        '''
+    
+    html += '</body></html>'
+    return html
+
 # 1. Determine which contracts to show
 contracts_to_render = []
 
