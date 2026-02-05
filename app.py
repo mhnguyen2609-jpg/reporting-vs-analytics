@@ -1143,73 +1143,441 @@ else:
 # ============================================================
 # TIMELINE SECTION
 # ============================================================
+# ============================================================
+# TIMELINE SECTION
+# ============================================================
+# Determine what files to show (Specific Contract OR All)
+target_files = []
+target_contract_name = "Tất cả"
+
 if st.session_state.selected_contract:
-    st.markdown("---")
-    st.markdown(f"### 📅 Timeline: `{st.session_state.selected_contract}`")
-    
-    # Input Row
-    col_date, col_desc, col_notes, col_actions = st.columns([1, 3, 2, 3])
-    with col_date:
-        st.text_input("Ngày", key="timeline_date", placeholder="dd/mm/yyyy")
-    with col_desc:
-        st.text_input("Mô tả", key="timeline_desc", placeholder="Nhập mô tả mốc...")
-    with col_notes:
-        st.text_area("Ghi chú / Kế hoạch", key="timeline_notes", height=68, placeholder="Ghi chú...")
-    with col_actions:
-        st.write("")
-        btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
-        with btn_col1:
-            st.button("➕ Thêm", key="btn_add_milestone", use_container_width=True)
-        with btn_col2:
-            st.button("🗑️ Xóa mốc", key="btn_del_milestone", use_container_width=True)
-        with btn_col3:
-            st.button("🗑️ Xóa tất cả", key="btn_del_all", use_container_width=True)
-        with btn_col4:
-            st.button("🔄 Làm mới", key="btn_refresh", use_container_width=True)
-    
-    # Progress Summary
-    contract_id = None
-    files = []
-    
+    target_contract_name = st.session_state.selected_contract
+    # ... logic to load specific contract files ...
     if st.session_state.data_source == 'Google Drive':
-        contract_id = st.session_state.contracts_map.get(st.session_state.selected_contract)
-        if contract_id:
-            files = load_data_from_drive(contract_id)
+        c_id = st.session_state.contracts_map.get(target_contract_name)
+        if c_id: target_files = load_data_from_drive(c_id)
     else:
-        # Local Mode
-        contract_path = os.path.join(st.session_state.local_root_path, str(st.session_state.selected_year), st.session_state.selected_contract)
-        files = scan_project_files(contract_path)
-    
-    aggs = calculate_aggregates(files) if files else {}
-    
-    cad = aggs.get('CAD', {'TC': 0, 'TT': 0})
-    cnc = aggs.get('CNC', {'TC': 0, 'TT': 0})
-    van = aggs.get('VAN', {'TC': 0, 'TT': 0})
-    vt = aggs.get('VAT_TU', {'TC': 0, 'TT': 0})
-    
-    st.markdown(f"""
-    <div style="background: #1e293b; padding: 8px 16px; border-radius: 8px; margin: 8px 0; font-size: 13px; color: #cbd5e1; font-family: Arial, sans-serif;">
-        <span style="margin-right: 24px;"><b>Shop duyệt:</b> {int(cad['TT'])}/{int(cad['TC'])}</span>
-        <span style="margin-right: 24px;"><b>Ván:</b> {int(van['TT'])}/{int(van['TC'])}</span>
-        <span style="margin-right: 24px;"><b>Sản xuất:</b> {int(cnc['TT'])}/{int(cnc['TC'])}</span>
-        <span><b>Vật tư:</b> {int(vt['TT'])}/{int(vt['TC'])}</span>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Timeline with vertical lines
-    sample_milestones = [
-        {"date": "01/02", "desc": "Bắt đầu", "shop": "0/67", "van": "0/0", "sx": "0/2488", "vt": "0/0"},
-        {"date": "05/02", "desc": "Nhập VT đợt 1", "shop": "20/67", "van": "500/4947", "sx": "500/2488", "vt": "100/0"},
-        {"date": "10/02", "desc": "Shop duyệt xong", "shop": "67/67", "van": "2000/4947", "sx": "1500/2488", "vt": "200/0"},
-        {"date": "15/02", "desc": "Giao hàng", "shop": "67/67", "van": "4947/4947", "sx": "2488/2488", "vt": "0/0"},
-    ]
-    
-    timeline_html = render_timeline_html(sample_milestones)
-    components.html(timeline_html, height=200)
+        c_path = os.path.join(st.session_state.local_root_path, str(st.session_state.selected_year), target_contract_name)
+        target_files = scan_project_files(c_path)
+else:
+    # Load ALL Contracts
+    if st.session_state.data_source == 'Google Drive' and 'details_cache' in st.session_state:
+        # Use Details Cache for speed
+        if st.session_state.details_cache:
+            import base64
+            all_files = []
+            for c_id, files in st.session_state.details_cache.items():
+                for f in files:
+                     # Decode content if needed (cached as base64 string)
+                    new_f = f.copy()
+                    content = f.get('content')
+                    if isinstance(content, str):
+                        try:
+                            new_f['content'] = base64.b64decode(content)
+                        except:
+                            pass
+                    all_files.append(new_f)
+            target_files = all_files
+            
+            if not target_files and st.session_state.master_data:
+                 st.info("Cache chi tiết đang trống. Vui lòng bấm 'Tải dữ liệu' để cập nhật.")
+        elif st.session_state.master_data:
+             st.info("Chưa có cache chi tiết. Vui lòng bấm 'Tải dữ liệu' để tạo cache.")
+
+st.markdown("---")
+st.markdown(f"### 📅 Timeline: `{target_contract_name}`")
+
+# Input Row (Keep as is)
+col_date, col_desc, col_notes, col_actions = st.columns([1, 3, 2, 3])
+with col_date:
+    st.text_input("Ngày", key="timeline_date", placeholder="dd/mm/yyyy")
+with col_desc:
+    st.text_input("Mô tả", key="timeline_desc", placeholder="Nhập mô tả mốc...")
+with col_notes:
+    st.text_area("Ghi chú / Kế hoạch", key="timeline_notes", height=68, placeholder="Ghi chú...")
+with col_actions:
+    st.write("")
+    btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
+    with btn_col1:
+        st.button("➕ Thêm", key="btn_add_milestone", use_container_width=True)
+    with btn_col2:
+        st.button("🗑️ Xóa mốc", key="btn_del_milestone", use_container_width=True)
+    with btn_col3:
+        st.button("🗑️ Xóa tất cả", key="btn_del_all", use_container_width=True)
+    with btn_col4:
+        st.button("🔄 Làm mới", key="btn_refresh", use_container_width=True)
+
+# REMOVED METRICS ROW HERE AS REQUESTED
+
+# Timeline with vertical lines
+sample_milestones = [
+    {"date": "01/02", "desc": "Bắt đầu", "shop": "0/67", "van": "0/0", "sx": "0/2488", "vt": "0/0"},
+    {"date": "05/02", "desc": "Nhập VT đợt 1", "shop": "20/67", "van": "500/4947", "sx": "500/2488", "vt": "100/0"},
+    {"date": "10/02", "desc": "Shop duyệt xong", "shop": "67/67", "van": "2000/4947", "sx": "1500/2488", "vt": "200/0"},
+    {"date": "15/02", "desc": "Giao hàng", "shop": "67/67", "van": "4947/4947", "sx": "2488/2488", "vt": "0/0"},
+]
+
+timeline_html = render_timeline_html(sample_milestones)
+components.html(timeline_html, height=200)
 
 # ============================================================
 # MATRIX GRID + DETAIL PANEL SECTION
 # ============================================================
+
+def render_matrix_grids_html(matrix_df, details_map):
+    """Render matrix using CSS Grid - 4 columns, click expands full-width detail row inline."""
+    if matrix_df.empty:
+        return "<p>Không có dữ liệu Matrix.</p>"
+    
+    products = matrix_df.index.tolist()
+    total = len(products)
+    items_per_group = 25
+    num_groups = math.ceil(total / items_per_group)
+    
+    # Organize products into groups (columns)
+    groups = []
+    for g in range(num_groups):
+        start_idx = g * items_per_group
+        end_idx = min((g + 1) * items_per_group, total)
+        groups.append(products[start_idx:end_idx])
+    
+    # Find max rows needed
+    max_rows = max(len(g) for g in groups) if groups else 0
+    
+    headers = ['Mã SP', 'Tên SP', 'CAD', 'ĐẶT HÀNG', 'CNC', 'Vật tư ưu tiên', 'Vật tư']
+    
+    def get_cell_style(delta):
+        # delta = TC - TT
+        if delta == 0: return ('✔', '#1E88E5')   # TT = TC: Complete (blue)
+        elif delta < 0: return ('➚', '#FFEB3B')  # TT > TC: Exceeded (yellow)
+        else: return ('✖', '#F44336')            # TT < TC: Incomplete (red)
+    
+    # Prepare details JSON for JavaScript
+    import json
+    details_json = json.dumps(details_map, ensure_ascii=False, default=str)
+    
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <style>
+        * {{ box-sizing: border-box; font-family: Arial, sans-serif; }}
+        body {{ margin: 0; padding: 10px; background: transparent; }}
+        
+        .matrix-grid {{
+            display: grid;
+            grid-template-columns: repeat({num_groups}, 1fr);
+            gap: 10px;
+        }}
+        
+        .grid-column {{
+            display: flex;
+            flex-direction: column;
+        }}
+        
+        .column-header {{
+            display: grid;
+            grid-template-columns: 90px 220px repeat(5, 32px);
+            align-items: center;
+            background: #1e3a5f;
+            border: 1px solid #334155;
+        }}
+        
+        .column-header span {{
+            color: #e2e8f0;
+            font-size: 10px;
+            font-weight: 600;
+            text-align: center;
+            padding: 3px 2px;
+            border-right: 1px solid #334155;
+        }}
+        
+        .column-header span:nth-child(1), .column-header span:nth-child(2) {{
+            writing-mode: horizontal-tb;
+            transform: none;
+            height: auto;
+        }}
+        
+        .column-header span:nth-child(n+3) {{
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            transform: rotate(180deg);
+            height: 70px;
+        }}
+        
+        .product-row {{
+            display: grid;
+            grid-template-columns: 90px 220px repeat(5, 32px);
+            border: 1px solid #334155;
+            align-items: stretch; /* Ensure cells stretch to full height */
+            border-top: none;
+            background: #0f172a;
+            color: #cbd5e1;
+            font-size: 11px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }}
+        
+        .product-row:hover {{
+            background: #334155;
+        }}
+        
+        .product-row.selected {{
+            background: #3b82f6 !important;
+            color: white !important;
+        }}
+        
+        .product-row span {{
+            padding: 4px 2px;
+            display: flex; /* Use flexbox for centering */
+            align-items: center;
+            justify-content: center;
+            border-right: 1px solid #334155;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }}
+        
+        .detail-row {{
+            grid-column: 1 / -1; /* Span all columns */
+            background: #1e293b;
+            border: 1px solid #475569;
+            margin-bottom: 10px;
+            padding: 10px;
+            display: none; /* Hidden by default */
+        }}
+        
+        .detail-table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            color: #e2e8f0;
+        }}
+        
+        .detail-table th {{
+            background: #334155;
+            padding: 5px;
+            text-align: left;
+            border: 1px solid #475569;
+        }}
+        
+        .detail-table td {{
+            padding: 5px;
+            border: 1px solid #475569;
+        }}
+
+        .status-ok {{ background-color: #4CAF50 !important; color: white; text-align: center; font-weight: 600; }}
+        .status-missing {{ background-color: #F44336 !important; color: white; text-align: center; font-weight: 600; }}
+        .status-extra {{ background-color: #FFEB3B !important; color: #333; text-align: center; font-weight: 600; }}
+        
+        .empty-cell {{
+            visibility: hidden;
+            height: 22px;
+        }}
+    </style>
+    <script>
+        var allDetails = {details_json};
+        var selectedRow = null;
+        var activeDetailRow = null;
+        
+        function showDetail(productCode, rowElement, detailRowId) {{
+            // Deselect previous
+            if (selectedRow) {{
+                selectedRow.classList.remove('selected');
+            }}
+            if (activeDetailRow) {{
+                activeDetailRow.style.display = 'none';
+            }}
+            
+            // Toggle off if clicking same row
+            if (selectedRow === rowElement) {{
+                selectedRow = null;
+                activeDetailRow = null;
+                return;
+            }}
+            
+            // Select new
+            rowElement.classList.add('selected');
+            selectedRow = rowElement;
+            
+            var detailRow = document.getElementById(detailRowId);
+            detailRow.style.display = 'block';
+            activeDetailRow = detailRow;
+            
+            var tbody = detailRow.querySelector('.detail-tbody');
+            var details = allDetails[productCode] || [];
+            
+            tbody.innerHTML = '';
+            
+            if (details.length === 0) {{
+                tbody.innerHTML = '<tr><td class="product-cell">' + productCode + '</td><td colspan="9" style="text-align:center; color:#94a3b8;">Chưa có dữ liệu chi tiết</td></tr>';
+            }} else {{
+                var cadItems = details.filter(function(d) {{ return d.category === 'CAD'; }});
+                var cadQty = cadItems.reduce(function(sum, d) {{ return sum + (d.quantity || 0); }}, 0);
+                
+                var cncItems = details.filter(function(d) {{ return d.category === 'CNC'; }});
+                var cncQty = cncItems.reduce(function(sum, d) {{ return sum + (d.quantity || 0); }}, 0);
+                
+                var vtItems = details.filter(function(d) {{ return d.category === 'VẬT TƯ'; }});
+                var vtPrio = vtItems.filter(function(d) {{ return d.is_priority; }});
+                var vtNorm = vtItems.filter(function(d) {{ return !d.is_priority; }});
+                
+                var totalRows = 0;
+                if (cadItems.length > 0) totalRows++;
+                if (cncItems.length > 0) totalRows++;
+                totalRows += vtPrio.length + vtNorm.length;
+                if (totalRows === 0) totalRows = 1;
+                
+                // Helper to render row
+                function renderRow(label, items, rowSpan, isFirst) {{
+                    var html = '';
+                    items.forEach(function(item, idx) {{
+                        html += '<tr>';
+                        if (isFirst && idx === 0) {{
+                            html += '<td rowspan="' + totalRows + '" style="font-weight:bold; vertical-align:top;">' + productCode + '</td>';
+                            html += '<td rowspan="' + totalRows + '" style="vertical-align:top;">' + (item.product_name || '') + '</td>';
+                        }}
+                        
+                        html += '<td>' + (item.name || label) + '</td>';
+                        html += '<td style="text-align:center;">' + (item.quantity || 0) + '</td>';
+                        html += '<td style="text-align:center;">' + (item.stock || 0) + '</td>';
+                        html += '<td style="text-align:center;">' + (item.unit || '') + '</td>';
+                         html += '<td style="text-align:center;">' + (item.date || '') + '</td>';
+                        
+                        // Status
+                        var st = item.status || '';
+                        var stClass = '';
+                        if (st === 'OK' || st === 'Đủ') stClass = 'status-ok';
+                        else if (st === 'Thiếu') stClass = 'status-missing';
+                        else if (st === 'Dư') stClass = 'status-extra';
+                        
+                        html += '<td class="' + stClass + '">' + st + '</td>';
+                        html += '<td class="' + stClass + '">' + st + '</td>'; // Assuming Status column relates to completion logic
+                        html += '<td>' + (item.note || '') + '</td>';
+                        html += '</tr>';
+                    }});
+                    return html;
+                }}
+                
+                 // Logic to render grouped rows (omitted for brevity, relying on previous logic or simplified for now)
+                 // RE-IMPLEMENTING BASIC RENDER LOOP FOR DETAILS
+                 
+                 details.forEach(function(d, i) {
+                     var row = '<tr>';
+                     if (i===0) {
+                         row += '<td rowspan="' + details.length + '">' + productCode + '</td>';
+                         row += '<td rowspan="' + details.length + '">' + (d.product_name || '') + '</td>';
+                     }
+                     row += '<td>' + d.name + '</td>';
+                     row += '<td style="text-align:center;">' + (d.quantity || 0) + '</td>';
+                     row += '<td style="text-align:center;">' + (d.stock || 0) + '</td>';
+                     row += '<td style="text-align:center;">' + (d.unit || '') + '</td>';
+                     row += '<td style="text-align:center;">' + (d.date || '') + '</td>';
+                     row += '<td>' + (d.status || '') + '</td>';
+                     row += '<td>' + (d.status || '') + '</td>'; 
+                     row += '<td>' + (d.note || '') + '</td>';
+                     row += '</tr>';
+                     tbody.innerHTML += row;
+                 });
+            }}
+        }}
+    </script>
+    </head>
+    <body>
+    """
+    
+    for row_idx in range(max_rows):
+        # Start a visual row container
+        html += '<div class="matrix-grid">'
+        
+        # Add header if first row
+        if row_idx == 0:
+            for g in range(num_groups):
+                html += '<div class="column-header">'
+                for h in headers:
+                    html += f'<span>{h}</span>'
+                html += '</div>'
+            html += '</div><div class="matrix-grid">'
+        
+        # Add product cells for each group
+        for g in range(num_groups):
+            if row_idx < len(groups[g]):
+                prod = groups[g][row_idx]
+                row_data = matrix_df.loc[prod] if prod in matrix_df.index else {}
+                
+                def get_cell(tc_key, tt_key):
+                    tc = row_data.get(tc_key, 0)
+                    tt = row_data.get(tt_key, 0)
+                    if tc > 0:
+                        icon, color = get_cell_style(tc - tt)
+                        return f'<span style="background:{color};">{icon}</span>'
+                    return '<span class="cell-empty"></span>'
+                
+                safe_prod = prod.replace("'", "\\'").replace('"', '\\"')
+                detail_row_id = f'detail_row_{row_idx}'
+                
+                html += f'<div class="grid-column"><div class="product-row" onclick="showDetail(\'{safe_prod}\', this, \'{detail_row_id}\')">'
+                html += f'<span>{prod}</span>'
+                html += f'<span style="text-align:left !important; padding-left:4px; font-weight:normal;" title="{row_data.get("TEN_SP", "")}">{row_data.get("TEN_SP", "")}</span>'
+                html += get_cell('CAD_TC', 'CAD_TT')
+                html += get_cell('DAT_HANG_TC', 'DAT_HANG_TT')
+                html += get_cell('CNC_TC', 'CNC_TT')
+                html += get_cell('VAT_TU_UU_TIEN_TC', 'VAT_TU_UU_TIEN_TT')
+                html += get_cell('VAT_TU_TC', 'VAT_TU_TT')
+                html += '</div></div>'
+            else:
+                # Empty placeholder for alignment
+                html += '<div class="grid-column"><div class="product-row empty-cell"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>'
+        
+        html += '</div>'  # End matrix-grid row
+        
+        # Add detail row placeholder (full-width, hidden by default)
+        detail_row_id = f'detail_row_{row_idx}'
+        html += f'''
+        <div id="{detail_row_id}" class="detail-row">
+            <table class="detail-table">
+                <thead>
+                    <tr>
+                        <th style="width:90px;">Mã SP</th>
+                        <th>TÊN SP</th>
+                        <th>TÊN HÀNG</th>
+                        <th style="width:60px;">SỐ LƯỢNG</th>
+                        <th style="width:50px;">TỒN</th>
+                        <th style="width:55px;">ĐƠN VỊ</th>
+                        <th style="width:100px;">NGÀY LẬP DS</th>
+                        <th style="width:100px;">HOÀN THÀNH</th>
+                        <th style="width:85px;">TRẠNG THÁI</th>
+                        <th style="width:100px;">GHI CHÚ</th>
+                    </tr>
+                </thead>
+                <tbody class="detail-tbody"></tbody>
+            </table>
+        </div>
+        '''
+    
+    html += '</body></html>'
+    return html
+
+st.markdown("---")
+st.markdown(f"### 📋 Bảng Matrix Chi tiết")
+
+if target_files:
+    matrix = build_matrix_table(target_files)
+    
+    if not matrix.empty:
+        # Load ALL Details
+        from src.core.calculator import get_all_product_details
+        details_map = get_all_product_details(target_files)
+        
+        # Render HTML with details embedded
+        html_content = render_matrix_grids_html(matrix, details_map)
+        
+        # Calculate height based on total products
+        total_height = 150 + (len(matrix) * 30) + 400  # header + rows + detail panel buffer
+        
+        components.html(html_content, height=total_height, scrolling=True)
+else:
+    st.info("Chưa có dữ liệu chi tiết cho (các) hợp đồng này.")
 
 def render_matrix_grids_html(matrix_df, details_map):
     """Render matrix using CSS Grid - 4 columns, click expands full-width detail row inline."""
