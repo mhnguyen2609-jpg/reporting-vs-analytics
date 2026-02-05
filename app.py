@@ -2072,9 +2072,9 @@ def render_matrix_grids_html(matrix_df, details_map):
         .cat-vt-ut {{ color: #f472b6; }}
         .cat-vt {{ color: #a3e635; }}
         
-        .status-done { background-color: #1E88E5 !important; color: white; text-align: center; font-weight: 600; }
-        .status-missing { background-color: #FFB300 !important; color: #000; text-align: center; font-weight: 600; }
-        .status-extra { background-color: #D32F2F !important; color: white; text-align: center; font-weight: 600; }}
+        .status-done {{ background-color: #1E88E5 !important; color: white; text-align: center; font-weight: 600; }}
+        .status-missing {{ background-color: #FFB300 !important; color: #000; text-align: center; font-weight: 600; }}
+        .status-extra {{ background-color: #D32F2F !important; color: white; text-align: center; font-weight: 600; }}
         
         .empty-cell {{
             visibility: hidden;
