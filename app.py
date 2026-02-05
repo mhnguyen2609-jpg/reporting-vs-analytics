@@ -14,13 +14,14 @@ from src.utils.file_scanner import scan_drive_files, scan_project_files
 from src.core.calculator import calculate_aggregates, build_matrix_table, get_all_product_details
 from src.utils.drive_adapter import GoogleDriveClient
 from src.core.constants import DEFAULT_ROOT_PATH
+from src.ui.design import Labels
 
 # ============================================================
 # PAGE CONFIG
 # ============================================================
 st.set_page_config(
-    page_title="Dashboard Quản lý Sản xuất (Cloud)",
-    page_icon="☁️",
+    page_title=Labels.PAGE_TITLE,
+    page_icon=Labels.PAGE_ICON,
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -594,10 +595,10 @@ def render_master_table_html(data):
     <table class="master-table">
         <thead>
             <tr>
-                <th style="width:20%;">Mã hợp đồng_Tên<br>khách hàng</th>
-                <th colspan="2" style="width:25%;">DANH MỤC</th>
-                <th style="width:15%;">Khối lượng</th>
-                <th style="width:15%;">Hoàn thành</th>
+                <th style="width:20%;">{Labels.MASTER_COL_CONTRACT}</th>
+                <th colspan="2" style="width:25%;">{Labels.MASTER_COL_CATEGORY}</th>
+                <th style="width:15%;">{Labels.MASTER_COL_VOLUME}</th>
+                <th style="width:15%;">{Labels.MASTER_COL_COMPLETE}</th>
                 <th style="width:12%;">%</th>
             </tr>
         </thead>
@@ -1058,7 +1059,7 @@ with st.sidebar:
         }
         
         years_list = list(YEAR_FOLDERS.keys())
-        selected_year = st.selectbox("📅 Chọn Năm", years_list, index=0)
+        selected_year = st.selectbox(Labels.LABEL_YEAR, years_list, index=0)
         st.session_state.selected_year = selected_year
         st.session_state.drive_root_id = YEAR_FOLDERS[selected_year]
         st.session_state.years_map = YEAR_FOLDERS
@@ -1075,7 +1076,7 @@ with st.sidebar:
         
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🔄 Tải dữ liệu", use_container_width=True):
+            if st.button(Labels.BTN_LOAD_DATA, use_container_width=True):
                 with st.spinner("Đang kiểm tra và tải..."):
                     st.session_state.master_data = load_all_contracts_data_logic(selected_year, YEAR_FOLDERS)
                     st.success(f"✅ Đã tải năm {selected_year}!")
@@ -1094,24 +1095,24 @@ with st.sidebar:
             c_map, c_list = get_contracts_for_year_drive(year_id)
             st.session_state.contracts_map = c_map
             
-            st.markdown("### 📁 Xem chi tiết")
-            selected_contract = st.selectbox("Chọn Hợp đồng", ["-- Chọn --"] + c_list)
-            if selected_contract != "-- Chọn --":
+            st.markdown(f"### {Labels.HEADER_DETAILS}")
+            selected_contract = st.selectbox(Labels.LABEL_CONTRACT, [Labels.OPTION_DEFAULT] + c_list)
+            if selected_contract != Labels.OPTION_DEFAULT:
                 st.session_state.selected_contract = selected_contract
             else:
                 st.session_state.selected_contract = None
             
     # LOCAL HDD MODE
     else:
-        local_path = st.text_input("Đường dẫn Local", value=st.session_state.local_root_path)
+        local_path = st.text_input(Labels.LABEL_LOCAL_PATH, value=st.session_state.local_root_path)
         st.session_state.local_root_path = local_path
         
         years = get_available_years_local(local_path)
         if years:
-            selected_year = st.selectbox("📅 Chọn Năm", years, index=0)
+            selected_year = st.selectbox(Labels.LABEL_YEAR, years, index=0)
             st.session_state.selected_year = selected_year
             
-            if st.button("🔄 Tải tất cả dự án (Local)", use_container_width=True):
+            if st.button(f"{Labels.BTN_LOAD_PROJECTS} (Local)", use_container_width=True):
                 with st.spinner("Đang quét ổ cứng..."):
                     st.session_state.master_data = load_all_contracts_data_local(local_path, selected_year)
                     st.success(f"✅ Đã tải năm {selected_year}!")
@@ -1121,9 +1122,9 @@ with st.sidebar:
             
             if st.session_state.master_data:
                 contracts = get_contracts_for_year_local(local_path, selected_year)
-                st.markdown("### 📁 Xem chi tiết")
-                selected_contract = st.selectbox("Chọn Hợp đồng", ["-- Chọn --"] + contracts)
-                if selected_contract != "-- Chọn --":
+                st.markdown(f"### {Labels.HEADER_DETAILS}")
+                selected_contract = st.selectbox(Labels.LABEL_CONTRACT, [Labels.OPTION_DEFAULT] + contracts)
+                if selected_contract != Labels.OPTION_DEFAULT:
                     st.session_state.selected_contract = selected_contract
                 else:
                     st.session_state.selected_contract = None
@@ -1142,7 +1143,7 @@ with st.sidebar:
 # ============================================================
 # MAIN AREA
 # ============================================================
-st.markdown("### 📊 Tổng quan")
+st.markdown(f"### {Labels.HEADER_OVERVIEW}")
 
 if st.session_state.master_data:
     html = render_master_table_html(st.session_state.master_data)
@@ -1180,7 +1181,7 @@ def render_matrix_grids_html(matrix_df, details_map):
     # Find max rows needed
     max_rows = max(len(g) for g in groups) if groups else 0
     
-    headers = ['Mã SP', 'Tên SP', 'CAD', 'ĐẶT HÀNG', 'CNC', 'Vật tư ưu tiên', 'Vật tư']
+    headers = Labels.MATRIX_HEADERS
     
     def get_cell_style(delta):
         # delta = TC - TT
@@ -1189,7 +1190,7 @@ def render_matrix_grids_html(matrix_df, details_map):
         else: return (Icons.STATUS_MISSING, Colors.STATUS_MISSING)            
     
 
-    from src.ui.design import get_matrix_css, Colors, Icons
+    from src.ui.design import get_matrix_css, Colors, Icons, Labels
     
     css = get_matrix_css(num_groups)
     
@@ -1329,16 +1330,16 @@ def render_matrix_grids_html(matrix_df, details_map):
             <table class="detail-table">
                 <thead>
                     <tr>
-                        <th style="width:90px;">Mã SP</th>
-                        <th>TÊN SP</th>
-                        <th>TÊN HÀNG</th>
-                        <th style="width:60px;">SỐ LƯỢNG</th>
-                        <th style="width:50px;">TỒN</th>
-                        <th style="width:55px;">ĐƠN VỊ</th>
-                        <th style="width:100px;">NGÀY LẬP DS</th>
-                        <th style="width:100px;">HOÀN THÀNH</th>
-                        <th style="width:85px;">TRẠNG THÁI</th>
-                        <th style="width:100px;">GHI CHÚ</th>
+                        <th style="width:90px;">{Labels.DETAIL_HEADERS[0]}</th>
+                        <th>{Labels.DETAIL_HEADERS[1]}</th>
+                        <th>{Labels.DETAIL_HEADERS[2]}</th>
+                        <th style="width:60px;">{Labels.DETAIL_HEADERS[3]}</th>
+                        <th style="width:50px;">{Labels.DETAIL_HEADERS[4]}</th>
+                        <th style="width:55px;">{Labels.DETAIL_HEADERS[5]}</th>
+                        <th style="width:100px;">{Labels.DETAIL_HEADERS[6]}</th>
+                        <th style="width:100px;">{Labels.DETAIL_HEADERS[7]}</th>
+                        <th style="width:85px;">{Labels.DETAIL_HEADERS[8]}</th>
+                        <th style="width:100px;">{Labels.DETAIL_HEADERS[9]}</th>
                     </tr>
                 </thead>
                 <tbody class="detail-tbody"></tbody>
@@ -1406,7 +1407,7 @@ if contracts_to_render:
             contract_files = scan_project_files(c_path)
             
         # HEADER
-        st.markdown(f"### 🏗️ {contract_name}")
+        st.markdown(f"### {Labels.HEADER_CONTRACT_PREFIX} {contract_name}")
         
         
         # --- TIMELINE / STATS ---

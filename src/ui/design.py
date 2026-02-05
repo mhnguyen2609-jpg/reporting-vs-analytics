@@ -35,6 +35,43 @@ class Icons:
     SIZE_HEADER = "12px"
     WEIGHT_BOLD = "600"
 
+class Labels:
+    """Centralized UI Text Strings"""
+    # Page Config
+    PAGE_TITLE = "Dashboard Quản lý Sản xuất (Cloud)"
+    PAGE_ICON = "☁️"
+    
+    # Section Headers
+    HEADER_OVERVIEW = "📊 Tổng quan"
+    HEADER_DETAILS = "📁 Xem chi tiết"
+    HEADER_CONTRACT_PREFIX = "🏗️"
+    
+    # Input Labels
+    LABEL_YEAR = "📅 Chọn Năm"
+    LABEL_CONTRACT = "Chọn Hợp đồng"
+    OPTION_DEFAULT = "-- Chọn --"
+    LABEL_LOCAL_PATH = "Đường dẫn Local"
+    
+    # Buttons
+    BTN_LOAD_PROJECTS = "🔄 Tải tất cả dự án"
+    BTN_LOAD_DATA = "🔄 Tải dữ liệu"
+    
+    # Matrix Table Headers
+    MATRIX_HEADERS = ['Mã SP', 'Tên SP', 'CAD', 'ĐẶT HÀNG', 'CNC', 'Vật tư ưu tiên', 'Vật tư']
+    
+    # Detail Table Headers (HTML)
+    DETAIL_HEADERS = [
+        "Mã SP", "TÊN SP", "TÊN HÀNG", "SỐ LƯỢNG", 
+        "TỒN", "ĐƠN VỊ", "NGÀY LẬP DS", 
+        "HOÀN THÀNH", "TRẠNG THÁI", "GHI CHÚ"
+    ]
+    
+    # Master Table Headers
+    MASTER_COL_CONTRACT = "Mã hợp đồng_Tên<br>khách hàng"
+    MASTER_COL_CATEGORY = "DANH MỤC"
+    MASTER_COL_VOLUME = "Khối lượng"
+    MASTER_COL_COMPLETE = "Hoàn thành"
+
 def get_status_style_css():
     """Returns CSS blocks for Status Classes"""
     return f"""
