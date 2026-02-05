@@ -800,5 +800,11 @@ def get_all_product_details(file_list: List[Dict]) -> Dict[str, List[Dict]]:
                     'note': xuat_data.get('note', ''),
                     'is_priority': xuat_data.get('is_priority', False)
                 })
+    # DEBUG: Print sample of final VT details
+    for key, items in list(all_details.items())[:2]:
+        vt_items = [i for i in items if i.get('category') == 'VẬT TƯ']
+        if vt_items:
+            print(f"[DEBUG FINAL] Key={key}, First VT item_name: '{vt_items[0].get('item_name', 'MISSING')}'")
+            print(f"[DEBUG FINAL] Full item keys: {list(vt_items[0].keys())}")
     
     return all_details
