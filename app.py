@@ -988,8 +988,14 @@ with st.sidebar:
         if cache_sheet_id:
             st.caption(f"✅ Cache found (ID: {cache_sheet_id[:5]}...)")
         else:
-            st.caption("⚠️ Cache not found on Drive. Please Load Data.")
-
+            st.caption("⚠️ Cache not found. Please Load Data to create it.")
+            
+        # DEBUG: AUTH STATUS
+        if drive_client.sheets_service:
+            st.caption("✅ Sheets Service: Connected")
+        else:
+            st.error("❌ Sheets Service: Disconnected (Check Auth)")
+            
         if st.session_state.master_data is None:
             shared_data, _ = load_shared_cache(str(selected_year), year_folder_id)
             if shared_data:
@@ -1005,7 +1011,8 @@ with st.sidebar:
                 with st.spinner("Đang kiểm tra và tải..."):
                     st.session_state.master_data = load_all_contracts_data_logic(selected_year, YEAR_FOLDERS)
                     st.success(f"✅ Đã tải năm {selected_year}!")
-                    st.rerun()
+                    # REMOVED RERUN FOR DEBUGGING
+                    # st.rerun()
         with col2:
             if st.button("🔃 Làm mới", use_container_width=True, help="Bỏ qua cache, tải lại toàn bộ"):
                 with st.spinner("Đang tải lại toàn bộ..."):
