@@ -1553,6 +1553,16 @@ if contracts_to_render:
                 from src.core.calculator import get_all_product_details
                 details_map = get_all_product_details(contract_files)
                 
+                # DEBUG: Show sample details_map data
+                with st.expander("🔍 DEBUG: Chi tiết dữ liệu (click để xem)", expanded=False):
+                    if details_map:
+                        sample_key = list(details_map.keys())[0] if details_map else None
+                        if sample_key:
+                            st.write(f"**Sample Key:** `{sample_key}`")
+                            st.json(details_map.get(sample_key, []))
+                    else:
+                        st.warning("details_map is empty!")
+                
                 # Render HTML
                 html_content = render_matrix_grids_html(matrix, details_map)
                 
