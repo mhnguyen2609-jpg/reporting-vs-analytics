@@ -1298,9 +1298,9 @@ def render_matrix_grids_html(matrix_df, details_map):
             border: 1px solid #475569;
         }}
 
-        .status-ok {{ background-color: #4CAF50 !important; color: white; text-align: center; font-weight: 600; }}
+        .status-done {{ background-color: #1E88E5 !important; color: white; text-align: center; font-weight: 600; }}
         .status-missing {{ background-color: #F44336 !important; color: white; text-align: center; font-weight: 600; }}
-        .status-extra {{ background-color: #FFEB3B !important; color: #333; text-align: center; font-weight: 600; }}
+        .status-extra {{ background-color: #FF9800 !important; color: white; text-align: center; font-weight: 600; }}
         
         .empty-cell {{
             visibility: hidden;
@@ -1365,8 +1365,8 @@ def render_matrix_grids_html(matrix_df, details_map):
                      var stIcon = '';
                      
                      if (st === 'Hoàn thành' || st === 'OK' || st === 'Đủ') {{ stClass = 'status-done'; stIcon = '✔ '; }}
-                     else if (st === 'Đang làm' || st === 'Thiếu') {{ stClass = 'status-missing'; stIcon = '➚ '; }}
-                     else if (st === 'Phát sinh' || st === 'Vượt KH' || st === 'Dư') {{ stClass = 'status-extra'; stIcon = '✖ '; }}
+                     else if (st === 'Đang làm' || st === 'Thiếu') {{ stClass = 'status-missing'; stIcon = '✖ '; }}
+                     else if (st === 'Phát sinh' || st === 'Vượt KH' || st === 'Dư') {{ stClass = 'status-extra'; stIcon = '➚ '; }}
                      
                      row += '<td style="text-align:center;">' + (d.date || d.creation_date || '') + '</td>';
                      row += '<td class="' + stClass + '">' + stIcon + st + '</td>'; 
