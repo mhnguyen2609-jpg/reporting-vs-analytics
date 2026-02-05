@@ -341,6 +341,10 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
     contracts_to_load = []
     if force_reload or not cached_data:
         contracts_to_load = contracts_list
+    elif not cached_details:
+        # If we have data but NO details (upgrade scenario), we must reload to generate details
+        contracts_to_load = contracts_list
+        st.toast("⚠️ Đang cập nhật Cache Chi tiết mới...", icon="ℹ️")
     else:
         cached_ts_dict = cached_timestamps if cached_timestamps else {}
         for contract_name in contracts_list:
