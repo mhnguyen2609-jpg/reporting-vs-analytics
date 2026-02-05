@@ -1354,11 +1354,11 @@ def render_matrix_grids_html(matrix_df, details_map):
                          row += '<td rowspan="' + details.length + '">' + productCode + '</td>';
                          row += '<td rowspan="' + details.length + '">' + (d.product_name || '') + '</td>';
                      }}
-                     row += '<td>' + d.name + '</td>';
+                     row += '<td>' + (d.item_name || '') + '</td>';
                      row += '<td style="text-align:center;">' + (d.quantity || 0) + '</td>';
-                     row += '<td style="text-align:center;">' + (d.stock || 0) + '</td>';
+                     row += '<td style="text-align:center;">' + (d.remaining || 0) + '</td>';
                      row += '<td style="text-align:center;">' + (d.unit || '') + '</td>';
-                     row += '<td style="text-align:center;">' + (d.date || '') + '</td>';
+                     row += '<td style="text-align:center;">' + (d.creation_date || d.date || '') + '</td>';
                      
                      var st = d.status || '';
                      var stClass = '';
@@ -1786,11 +1786,11 @@ def render_matrix_grids_html(matrix_df, details_map):
                          row += '<td rowspan="' + details.length + '">' + productCode + '</td>';
                          row += '<td rowspan="' + details.length + '">' + (d.product_name || '') + '</td>';
                      }}
-                     row += '<td>' + d.name + '</td>';
+                     row += '<td>' + (d.item_name || '') + '</td>';
                      row += '<td style="text-align:center;">' + (d.quantity || 0) + '</td>';
-                     row += '<td style="text-align:center;">' + (d.stock || 0) + '</td>';
+                     row += '<td style="text-align:center;">' + (d.remaining || 0) + '</td>';
                      row += '<td style="text-align:center;">' + (d.unit || '') + '</td>';
-                     row += '<td style="text-align:center;">' + (d.date || '') + '</td>';
+                     row += '<td style="text-align:center;">' + (d.creation_date || d.date || '') + '</td>';
                      
                      var st = d.status || '';
                      var stClass = '';
