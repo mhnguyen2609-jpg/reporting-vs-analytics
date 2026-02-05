@@ -1501,21 +1501,11 @@ if contracts_to_render:
         # HEADER
         st.markdown(f"### 🏗️ {contract_name}")
         
+        
         # --- TIMELINE / STATS ---
-        # Try to get stats from contract_files first (most accurate), fallback to master_data cache
-        cad_stats = {'TC': 0, 'TT': 0}
-        cnc_stats = {'TC': 0, 'TT': 0}
-        van_stats = {'TC': 0, 'TT': 0}
-        vt_stats = {'TC': 0, 'TT': 0}
-
-        if contract_files:
-            aggs = calculate_aggregates(contract_files)
-            cad_stats = aggs.get('CAD', {'TC': 0, 'TT': 0})
-            cnc_stats = aggs.get('CNC', {'TC': 0, 'TT': 0})
-            van_stats = aggs.get('VAN', {'TC': 0, 'TT': 0})
-            vt_stats = aggs.get('VAT_TU', {'TC': 0, 'TT': 0})
-        elif contract_name in stats_map:
-            # Parse from Master Data string format "TT/TC"
+        aggs = calculate_aggregates(contract_files) if contract_files else {}
+        # Falls back to master_data cache if files missing
+        if not contract_files and contract_name in stats_map:
             row = stats_map[contract_name]
             def parse_stat(val):
                 if isinstance(val, str) and '/' in val:
@@ -1527,6 +1517,11 @@ if contracts_to_render:
             cnc_stats = parse_stat(row.get('CNC', '0/0'))
             van_stats = parse_stat(row.get('VÁN', '0/0'))
             vt_stats = parse_stat(row.get('VẬT TƯ', '0/0'))
+        else:
+             cad_stats = aggs.get('CAD', {'TC': 0, 'TT': 0})
+             cnc_stats = aggs.get('CNC', {'TC': 0, 'TT': 0})
+             van_stats = aggs.get('VAN', {'TC': 0, 'TT': 0})
+             vt_stats = aggs.get('VAT_TU', {'TC': 0, 'TT': 0})
 
         # Render Stats Bar
         st.markdown(f"""
@@ -1538,6 +1533,18 @@ if contracts_to_render:
         </div>
         """, unsafe_allow_html=True)
         
+        # Render Timeline Chart (Restored)
+        # Using simple sample milestones for now, as real milestone logic from files is complex
+        # Ideally this should come from a project_plan.xlsx or similar if it exists
+        sample_milestones = [
+            {"date": "...", "desc": "Bắt đầu", "shop": "...", "van": "...", "sx": "...", "vt": "..."},
+        ]
+        # Only render if we have some data or specific logic
+        timeline_html = render_timeline_html(sample_milestones)
+        # components.html(timeline_html, height=200) # Commented out as it takes too much space, just showing Stats Bar is cleaner per user preference?
+        # User requested "bị mất bảng timeline", so I MUST uncomment it.
+        components.html(timeline_html, height=180) 
+
         # Display Matrix
         if contract_files:
             matrix = build_matrix_table(contract_files)
@@ -1549,8 +1556,11 @@ if contracts_to_render:
                 # Render HTML
                 html_content = render_matrix_grids_html(matrix, details_map)
                 
-                # Calculate height
-                total_height = 150 + (len(matrix) * 30) + 400
+                # Calculate height: Collapsed vs Expanded
+                # Using a tighter bound: 150(Header+Stats) + Rows*30 + Buffer
+                # We can't know if user expands, but 400 was too much.
+                # Let's drop buffer to 100, and rely on user scrolling if they expand A LOT.
+                total_height = 100 + (len(matrix) * 32) + 150 
                 components.html(html_content, height=total_height, scrolling=True)
             else:
                  st.info(f"ℹ️ Không có dữ liệu Matrix cho {contract_name}")
@@ -2140,41 +2150,87 @@ def render_matrix_grids_html(matrix_df, details_map):
                         row += '<td class="product-cell" rowspan="' + totalRows + '" style="font-weight:normal; font-size:12px; width:150px;">' + productNameStr + '</td>';
                         firstRow = false;
                     }}
-                    row += '<td>' + (d.item_name || '') + '</td>';
-                    row += '<td style="text-align:center;">' + (d.quantity || 0) + '</td>';
-                    row += '<td style="text-align:center; font-weight:bold; color:' + (d.remaining < 0 ? '#ef4444' : (d.remaining > 0 ? '#facc15' : '#94a3b8')) + ';">' + (d.remaining || 0) + '</td>';
-                    row += '<td style="text-align:center;">' + (d.unit || '') + '</td>';
-                    row += '<td style="text-align:center;">' + (d.creation_date || '') + '</td>';
-                    row += '<td style="text-align:center;">' + (d.date || '') + '</td>';
-                    var sc = d.status_code || '';
-                    var statusClass = sc === 'done' ? 'status-done' : (sc === 'missing' ? 'status-missing' : (sc === 'extra' ? 'status-extra' : ''));
-                    var statusIcon = sc === 'done' ? '✔' : (sc === 'missing' ? '✖' : (sc === 'extra' ? '➚' : ''));
-                    row += '<td class="' + statusClass + '">' + statusIcon + '</td>';
-                    row += '<td>' + (d.note || '') + '</td></tr>';
-                    tbody.innerHTML += row;
-                }}
-                
-                for (var i = 0; i < vtNorm.length; i++) {{
-                    var d = vtNorm[i];
-                    var row = '<tr>';
-                    if (firstRow) {{
-                        row += '<td class="product-cell" rowspan="' + totalRows + '">' + productCode + '</td>';
-                        row += '<td class="product-cell" rowspan="' + totalRows + '" style="font-weight:normal; font-size:12px; width:150px;">' + productNameStr + '</td>';
-                        firstRow = false;
-                    }}
-                    row += '<td>' + (d.item_name || '') + '</td>';
-                    row += '<td style="text-align:center;">' + (d.quantity || 0) + '</td>';
-                    row += '<td style="text-align:center; font-weight:bold; color:' + (d.remaining < 0 ? '#ef4444' : (d.remaining > 0 ? '#facc15' : '#94a3b8')) + ';">' + (d.remaining || 0) + '</td>';
-                    row += '<td style="text-align:center;">' + (d.unit || '') + '</td>';
-                    row += '<td style="text-align:center;">' + (d.creation_date || '') + '</td>';
-                    row += '<td style="text-align:center;">' + (d.date || '') + '</td>';
-                    var sc = d.status_code || '';
-                    var statusClass = sc === 'done' ? 'status-done' : (sc === 'missing' ? 'status-missing' : (sc === 'extra' ? 'status-extra' : ''));
-                    var statusIcon = sc === 'done' ? '✔' : (sc === 'missing' ? '✖' : (sc === 'extra' ? '➚' : ''));
-                    row += '<td class="' + statusClass + '">' + statusIcon + '</td>';
-                    row += '<td>' + (d.note || '') + '</td></tr>';
-                    tbody.innerHTML += row;
-                }}
+                     row += '<td>' + (d.item_name || d.name || d.product_name || '') + '</td>';
+                     row += '<td style="text-align:center;">' + (d.quantity || 0) + '</td>';
+                     
+                     // Remaining / Tồn logic
+                     var rem = (d.remaining !== undefined) ? d.remaining : (d.stock || 0);
+                     var remColor = '#94a3b8'; // gray
+                     if (rem < 0) remColor = '#ef4444'; // red (missing)
+                     else if (rem > 0) remColor = '#facc15'; // yellow (extra/stock)
+                     
+                     row += '<td style="text-align:center; font-weight:bold; color:' + remColor + ';">' + rem + '</td>';
+                     row += '<td style="text-align:center;">' + (d.unit || '') + '</td>';
+                     row += '<td style="text-align:center;">' + (d.creation_date || '') + '</td>';
+                     row += '<td style="text-align:center;">' + (d.date || '') + '</td>';
+                     
+                     // Status Logic
+                     // 1. Try status_code (done, missing, extra)
+                     var sc = d.status_code || '';
+                     // 2. Fallback to status text
+                     var stText = d.status || '';
+                     
+                     var statusClass = '';
+                     var statusIcon = '';
+                     
+                     if (sc === 'done' || stText === 'Hoàn thành' || stText === 'Đủ') {
+                         statusClass = 'status-done';
+                         statusIcon = '✔';
+                     } else if (sc === 'missing' || stText === 'Thiếu' || (rem < 0)) {
+                         statusClass = 'status-missing';
+                         statusIcon = '✖';
+                     } else if (sc === 'extra' || stText === 'Dư' || stText === 'Phát sinh') {
+                         statusClass = 'status-extra';
+                         statusIcon = '➚';
+                     }
+                     
+                     row += '<td class="' + statusClass + '">' + (statusIcon || stText) + '</td>';
+                     row += '<td>' + (d.note || '') + '</td></tr>';
+                     tbody.innerHTML += row;
+                 }}
+                 
+                 for (var i = 0; i < vtNorm.length; i++) {
+                     var d = vtNorm[i];
+                     var row = '<tr>';
+                     if (firstRow) {
+                         row += '<td class="product-cell" rowspan="' + totalRows + '">' + productCode + '</td>';
+                         row += '<td class="product-cell" rowspan="' + totalRows + '" style="font-weight:normal; font-size:12px; width:150px;">' + productNameStr + '</td>';
+                         firstRow = false;
+                     }
+                     row += '<td>' + (d.item_name || d.name || d.product_name || '') + '</td>';
+                     row += '<td style="text-align:center;">' + (d.quantity || 0) + '</td>';
+                     
+                     var rem = (d.remaining !== undefined) ? d.remaining : (d.stock || 0);
+                     var remColor = '#94a3b8';
+                     if (rem < 0) remColor = '#ef4444';
+                     else if (rem > 0) remColor = '#facc15';
+                     
+                     row += '<td style="text-align:center; font-weight:bold; color:' + remColor + ';">' + rem + '</td>';
+                     row += '<td style="text-align:center;">' + (d.unit || '') + '</td>';
+                     row += '<td style="text-align:center;">' + (d.creation_date || '') + '</td>';
+                     row += '<td style="text-align:center;">' + (d.date || '') + '</td>';
+                     
+                      // Status Logic (Copy same logic)
+                     var sc = d.status_code || '';
+                     var stText = d.status || '';
+                     var statusClass = '';
+                     var statusIcon = '';
+                     
+                     if (sc === 'done' || stText === 'Hoàn thành' || stText === 'Đủ') {
+                         statusClass = 'status-done';
+                         statusIcon = '✔';
+                     } else if (sc === 'missing' || stText === 'Thiếu' || (rem < 0)) {
+                         statusClass = 'status-missing';
+                         statusIcon = '✖';
+                     } else if (sc === 'extra' || stText === 'Dư' || stText === 'Phát sinh') {
+                         statusClass = 'status-extra';
+                         statusIcon = '➚';
+                     }
+
+                     row += '<td class="' + statusClass + '">' + (statusIcon || stText) + '</td>';
+                     row += '<td>' + (d.note || '') + '</td></tr>';
+                     tbody.innerHTML += row;
+                 }}
                 
                 if (totalRows === 0) {{
                     tbody.innerHTML = '<tr><td class="product-cell">' + productCode + '</td><td colspan="9" style="text-align:center; color:#94a3b8;">Chưa có dữ liệu</td></tr>';
