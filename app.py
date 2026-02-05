@@ -1362,12 +1362,14 @@ def render_matrix_grids_html(matrix_df, details_map):
                      
                      var st = d.status || '';
                      var stClass = '';
-                     if (st === 'OK' || st === 'Đủ') stClass = 'status-ok';
-                     else if (st === 'Thiếu') stClass = 'status-missing';
-                     else if (st === 'Dư') stClass = 'status-extra';
+                     var stIcon = '';
                      
-                     row += '<td class="' + stClass + '">' + st + '</td>';
-                     row += '<td class="' + stClass + '">' + st + '</td>'; 
+                     if (st === 'Hoàn thành' || st === 'OK' || st === 'Đủ') { stClass = 'status-done'; stIcon = '✔ '; }
+                     else if (st === 'Đang làm' || st === 'Thiếu') { stClass = 'status-missing'; stIcon = '⏳ '; }
+                     else if (st === 'Phát sinh' || st === 'Vượt KH' || st === 'Dư') { stClass = 'status-extra'; stIcon = '⚠ '; }
+                     
+                     row += '<td style="text-align:center;">' + (d.date || d.creation_date || '') + '</td>';
+                     row += '<td class="' + stClass + '">' + stIcon + st + '</td>'; 
                      row += '<td>' + (d.note || '') + '</td>';
                      row += '</tr>';
                      tbody.innerHTML += row;
@@ -1794,12 +1796,14 @@ def render_matrix_grids_html(matrix_df, details_map):
                      
                      var st = d.status || '';
                      var stClass = '';
-                     if (st === 'OK' || st === 'Đủ') stClass = 'status-ok';
-                     else if (st === 'Thiếu') stClass = 'status-missing';
-                     else if (st === 'Dư') stClass = 'status-extra';
+                     var stIcon = '';
                      
-                     row += '<td class="' + stClass + '">' + st + '</td>';
-                     row += '<td class="' + stClass + '">' + st + '</td>'; 
+                     if (st === 'Hoàn thành' || st === 'OK' || st === 'Đủ') { stClass = 'status-done'; stIcon = '✔ '; }
+                     else if (st === 'Đang làm' || st === 'Thiếu') { stClass = 'status-missing'; stIcon = '⏳ '; }
+                     else if (st === 'Phát sinh' || st === 'Vượt KH' || st === 'Dư') { stClass = 'status-extra'; stIcon = '⚠ '; }
+                     
+                     row += '<td style="text-align:center;">' + (d.date || d.creation_date || '') + '</td>';
+                     row += '<td class="' + stClass + '">' + stIcon + st + '</td>'; 
                      row += '<td>' + (d.note || '') + '</td>';
                      row += '</tr>';
                      tbody.innerHTML += row;
@@ -2068,9 +2072,9 @@ def render_matrix_grids_html(matrix_df, details_map):
         .cat-vt-ut {{ color: #f472b6; }}
         .cat-vt {{ color: #a3e635; }}
         
-        .status-done {{ background-color: #1E88E5 !important; color: white; text-align: center; font-weight: 600; }}
-        .status-missing {{ background-color: #F44336 !important; color: white; text-align: center; font-weight: 600; }}
-        .status-extra {{ background-color: #FFEB3B !important; color: #333; text-align: center; font-weight: 600; }}
+        .status-done { background-color: #1E88E5 !important; color: white; text-align: center; font-weight: 600; }
+        .status-missing { background-color: #FFB300 !important; color: #000; text-align: center; font-weight: 600; }
+        .status-extra { background-color: #D32F2F !important; color: white; text-align: center; font-weight: 600; }}
         
         .empty-cell {{
             visibility: hidden;
@@ -2217,19 +2221,14 @@ def render_matrix_grids_html(matrix_df, details_map):
                      var statusClass = '';
                      var statusIcon = '';
                      
-                     if (sc === 'done' || stText === 'Hoàn thành' || stText === 'Đủ') {{
-                         statusClass = 'status-done';
-                         statusIcon = '✔';
-                     }} else if (sc === 'missing' || stText === 'Đang làm' || (rem > 0)) {{
-                         statusClass = 'status-extra';
-                         statusIcon = '⏳';
-                     }} else if (sc === 'extra' || stText === 'Phát sinh' || stText === 'Vượt KH' || (rem < 0)) {{
-                         statusClass = 'status-missing';
-                         statusIcon = '⚠';
-                     }}
+                     // Priority to status_code if available
+                     if (sc === 'done' || stText === 'Hoàn thành' || stText === 'Đủ') { statusClass = 'status-done'; statusIcon = '✔ '; }
+                     else if (sc === 'missing' || stText === 'Đang làm' || stText === 'Thiếu') { statusClass = 'status-missing'; statusIcon = '⏳ '; }
+                     else if (sc === 'extra' || stText === 'Phát sinh' || stText === 'Vượt KH' || stText === 'Dư') { statusClass = 'status-extra'; statusIcon = '⚠ '; }
                      
-                     row += '<td class="' + statusClass + '">' + (statusIcon || stText) + '</td>';
-                     row += '<td>' + (d.note || '') + '</td></tr>';
+                     row += '<td class="' + statusClass + '">' + statusIcon + stText + '</td>'; 
+                     row += '<td>' + (d.note || '') + '</td>';
+                     row += '</tr>';
                      tbody.innerHTML += row;
                  }}
                  
