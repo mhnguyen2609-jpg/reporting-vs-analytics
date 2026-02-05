@@ -124,12 +124,25 @@ def get_timestamps_path(year: str) -> Path:
 
 def save_shared_cache(year: str, data: list, timestamps: dict, year_folder_id: str = None):
     """Save data to shared cache - local + Google Sheets."""
+    
+    def json_default(obj):
+        import numpy as np
+        if isinstance(obj, (np.int_, np.intc, np.intp, np.int8,
+            np.int16, np.int32, np.int64, np.uint8,
+            np.uint16, np.uint32, np.uint64)):
+            return int(obj)
+        elif isinstance(obj, (np.float_, np.float16, np.float32, np.float64)):
+            return float(obj)
+        elif isinstance(obj, (np.ndarray,)):
+            return obj.tolist()
+        raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
     try:
         # 1. Save locally first (for quick access)
         with open(get_cache_path(year), 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False)
+            json.dump(data, f, ensure_ascii=False, default=json_default)
         with open(get_timestamps_path(year), 'w', encoding='utf-8') as f:
-            json.dump(timestamps, f, ensure_ascii=False)
+            json.dump(timestamps, f, ensure_ascii=False, default=json_default)
         
         # 2. Save to Google Sheets (for persistence)
         if year_folder_id and drive_client and drive_client.service:
@@ -162,7 +175,7 @@ def save_shared_cache(year: str, data: list, timestamps: dict, year_folder_id: s
                 # Better: Just use 2 sheets. But creating sheet requires batchUpdate addSheet.
                 # Simplified: Save Timestamps in "timestamps" sheet if possible, else just specialized storage
                 # Let's simple: Save TS as JSON in Cell AA1 of Sheet1
-                ts_json = json.dumps(timestamps)
+                ts_json = json.dumps(timestamps, default=json_default)
                 drive_client.write_sheet_data(spreadsheet_id, "Sheet1!AA1", [['METADATA_TIMESTAMPS', ts_json]])
                 
                 print(f"[OK] Cache saved to Sheets: {sheet_title}")
