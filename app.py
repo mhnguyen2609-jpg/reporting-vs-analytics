@@ -1128,7 +1128,16 @@ with st.sidebar:
                 else:
                     st.session_state.selected_contract = None
         else:
-            st.error("Không tìm thấy thư mục năm nào trong đường dẫn này.")
+            # DEBUG: Show what's in the folder
+            if os.path.exists(local_path):
+                try:
+                    all_items = os.listdir(local_path)
+                    dirs_only = [d for d in all_items if os.path.isdir(os.path.join(local_path, d))]
+                    st.warning(f"⚠️ Đường dẫn tồn tại nhưng không tìm thấy năm. Các thư mục hiện có: {dirs_only[:10]}")
+                except Exception as e:
+                    st.error(f"Lỗi liệt kê thư mục: {e}")
+            else:
+                st.error(f"❌ Đường dẫn không tồn tại: `{local_path}`")
 
 # ============================================================
 # MAIN AREA
