@@ -2115,8 +2115,12 @@ def render_matrix_grids_html(matrix_df, details_map):
                         row += '<td class="product-cell" rowspan="' + totalRows + '" style="font-weight:normal; font-size:12px; width:150px;">' + productNameStr + '</td>';
                         firstRow = false;
                     }}
-                    // CAD Row Content
-                    row += '<td>' + (cadItems[0].item_name || '') + '</td>';
+                    // CAD Row Content - Robust name check
+                    var cadName = cadItems[0].item_name;
+                    if (!cadName || cadName === 'undefined' || cadName === '') {{ cadName = cadItems[0].name; }}
+                    if (!cadName || cadName === 'undefined' || cadName === '') {{ cadName = cadItems[0].product_name; }}
+                    if (!cadName || cadName === 'undefined' || cadName === '') {{ cadName = 'DEBUG_CAD: ' + JSON.stringify(cadItems[0]).substring(0, 80); }}
+                    row += '<td>' + cadName + '</td>';
                     row += '<td style="text-align:center;">' + cadQty + '</td>';
                     row += '<td></td>';
                     row += '<td style="text-align:center;">' + (cadItems[0].unit || '') + '</td>';
@@ -2132,8 +2136,12 @@ def render_matrix_grids_html(matrix_df, details_map):
                         row += '<td class="product-cell" rowspan="' + totalRows + '" style="font-weight:normal; font-size:12px; width:150px;">' + productNameStr + '</td>';
                         firstRow = false;
                     }}
-                    // CNC Row Content
-                    row += '<td>' + (cncItems[0].item_name || '') + '</td>';
+                    // CNC Row Content - Robust name check
+                    var cncName = cncItems[0].item_name;
+                    if (!cncName || cncName === 'undefined' || cncName === '') {{ cncName = cncItems[0].name; }}
+                    if (!cncName || cncName === 'undefined' || cncName === '') {{ cncName = cncItems[0].product_name; }}
+                    if (!cncName || cncName === 'undefined' || cncName === '') {{ cncName = 'DEBUG_CNC: ' + JSON.stringify(cncItems[0]).substring(0, 80); }}
+                    row += '<td>' + cncName + '</td>';
                     row += '<td style="text-align:center;">' + cncQty + '</td>';
                     row += '<td></td>';
                     row += '<td style="text-align:center;">' + (cncItems[0].unit || '') + '</td>';
