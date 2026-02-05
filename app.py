@@ -2173,26 +2173,26 @@ def render_matrix_grids_html(matrix_df, details_map):
                      var statusClass = '';
                      var statusIcon = '';
                      
-                     if (sc === 'done' || stText === 'Hoàn thành' || stText === 'Đủ') {
+                     if (sc === 'done' || stText === 'Hoàn thành' || stText === 'Đủ') {{
                          statusClass = 'status-done';
                          statusIcon = '✔';
-                     } else if (sc === 'missing' || stText === 'Thiếu' || (rem < 0)) {
+                     }} else if (sc === 'missing' || stText === 'Thiếu' || (rem < 0)) {{
                          statusClass = 'status-missing';
                          statusIcon = '✖';
-                     } else if (sc === 'extra' || stText === 'Dư' || stText === 'Phát sinh') {
+                     }} else if (sc === 'extra' || stText === 'Dư' || stText === 'Phát sinh') {{
                          statusClass = 'status-extra';
                          statusIcon = '➚';
-                     }
+                     }}
                      
                      row += '<td class="' + statusClass + '">' + (statusIcon || stText) + '</td>';
                      row += '<td>' + (d.note || '') + '</td></tr>';
                      tbody.innerHTML += row;
                  }}
                  
-                 for (var i = 0; i < vtNorm.length; i++) {
+                 for (var i = 0; i < vtNorm.length; i++) {{
                      var d = vtNorm[i];
                      var row = '<tr>';
-                     if (firstRow) {
+                     if (firstRow) {{
                          row += '<td class="product-cell" rowspan="' + totalRows + '">' + productCode + '</td>';
                          row += '<td class="product-cell" rowspan="' + totalRows + '" style="font-weight:normal; font-size:12px; width:150px;">' + productNameStr + '</td>';
                          firstRow = false;
@@ -2216,16 +2216,16 @@ def render_matrix_grids_html(matrix_df, details_map):
                      var statusClass = '';
                      var statusIcon = '';
                      
-                     if (sc === 'done' || stText === 'Hoàn thành' || stText === 'Đủ') {
+                     if (sc === 'done' || stText === 'Hoàn thành' || stText === 'Đủ') {{
                          statusClass = 'status-done';
                          statusIcon = '✔';
-                     } else if (sc === 'missing' || stText === 'Thiếu' || (rem < 0)) {
+                     }} else if (sc === 'missing' || stText === 'Thiếu' || (rem < 0)) {{
                          statusClass = 'status-missing';
                          statusIcon = '✖';
-                     } else if (sc === 'extra' || stText === 'Dư' || stText === 'Phát sinh') {
+                     }} else if (sc === 'extra' || stText === 'Dư' || stText === 'Phát sinh') {{
                          statusClass = 'status-extra';
                          statusIcon = '➚';
-                     }
+                     }}
 
                      row += '<td class="' + statusClass + '">' + (statusIcon || stText) + '</td>';
                      row += '<td>' + (d.note || '') + '</td></tr>';
