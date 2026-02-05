@@ -2152,9 +2152,9 @@ def render_matrix_grids_html(matrix_df, details_map):
                     }}
                      // DEBUG: If name is missing, show whole object to see what's wrong
                      var nameVal = d.item_name || d.name || d.product_name;
-                     if (!nameVal) {
+                     if (!nameVal) {{
                          nameVal = "ERR: " + Object.keys(d).join(",");
-                     }
+                     }}
                      row += '<td>' + nameVal + '</td>';
                      row += '<td style="text-align:center;">' + (d.quantity || 0) + '</td>';
                      
