@@ -1168,7 +1168,18 @@ else:
 if contracts_to_render:
     # Pre-load details cache if available to avoid repeated lookups
     details_cache = st.session_state.get('details_cache', {})
+    master_data = st.session_state.get('master_data', [])
     
+    # Create helper map for Master Data stats
+    stats_map = {}
+    if master_data:
+        for row in master_data:
+            if 'contract' in row:
+                stats_map[row['contract']] = row
+
+    if not details_cache and len(contracts_to_render) > 1:
+        st.warning("⚠️ Dữ liệu chi tiết chưa được tải đầy đủ. Vui lòng nhấn **'Tải dữ liệu'** để xem danh sách Matrix đầy đủ.")
+
     for contract_name in contracts_to_render:
         
         # Determine contract ID and Files
@@ -1196,39 +1207,45 @@ if contracts_to_render:
             c_path = os.path.join(st.session_state.local_root_path, str(st.session_state.selected_year), contract_name)
             contract_files = scan_project_files(c_path)
             
-        # Skip if no files found for this contract (and not explicit selection)
-        if not contract_files and len(contracts_to_render) > 1:
-            continue
-
         # HEADER
         st.markdown(f"### 🏗️ {contract_name}")
         
-        # --- TIMELINE FOR THIS CONTRACT ---
-        aggs = calculate_aggregates(contract_files) if contract_files else {}
-        cad = aggs.get('CAD', {'TC': 0, 'TT': 0})
-        cnc = aggs.get('CNC', {'TC': 0, 'TT': 0})
-        van = aggs.get('VAN', {'TC': 0, 'TT': 0})
-        vt = aggs.get('VAT_TU', {'TC': 0, 'TT': 0})
-        
-        # Stats Bar
+        # --- TIMELINE / STATS ---
+        # Try to get stats from contract_files first (most accurate), fallback to master_data cache
+        cad_stats = {'TC': 0, 'TT': 0}
+        cnc_stats = {'TC': 0, 'TT': 0}
+        van_stats = {'TC': 0, 'TT': 0}
+        vt_stats = {'TC': 0, 'TT': 0}
+
+        if contract_files:
+            aggs = calculate_aggregates(contract_files)
+            cad_stats = aggs.get('CAD', {'TC': 0, 'TT': 0})
+            cnc_stats = aggs.get('CNC', {'TC': 0, 'TT': 0})
+            van_stats = aggs.get('VAN', {'TC': 0, 'TT': 0})
+            vt_stats = aggs.get('VAT_TU', {'TC': 0, 'TT': 0})
+        elif contract_name in stats_map:
+            # Parse from Master Data string format "TT/TC"
+            row = stats_map[contract_name]
+            def parse_stat(val):
+                if isinstance(val, str) and '/' in val:
+                    parts = val.split('/')
+                    return {'TT': int(parts[0]), 'TC': int(parts[1])}
+                return {'TC': 0, 'TT': 0}
+            
+            cad_stats = parse_stat(row.get('CAD', '0/0'))
+            cnc_stats = parse_stat(row.get('CNC', '0/0'))
+            van_stats = parse_stat(row.get('VÁN', '0/0'))
+            vt_stats = parse_stat(row.get('VẬT TƯ', '0/0'))
+
+        # Render Stats Bar
         st.markdown(f"""
         <div style="background: #1e293b; padding: 8px 16px; border-radius: 8px; margin: 8px 0; font-size: 13px; color: #cbd5e1; font-family: Arial, sans-serif;">
-            <span style="margin-right: 24px;"><b>Shop duyệt:</b> {int(cad['TT'])}/{int(cad['TC'])}</span>
-            <span style="margin-right: 24px;"><b>Ván:</b> {int(van['TT'])}/{int(van['TC'])}</span>
-            <span style="margin-right: 24px;"><b>Sản xuất:</b> {int(cnc['TT'])}/{int(cnc['TC'])}</span>
-            <span><b>Vật tư:</b> {int(vt['TT'])}/{int(vt['TC'])}</span>
+            <span style="margin-right: 24px;"><b>Shop duyệt:</b> {int(cad_stats['TT'])}/{int(cad_stats['TC'])}</span>
+            <span style="margin-right: 24px;"><b>Ván:</b> {int(van_stats['TT'])}/{int(van_stats['TC'])}</span>
+            <span style="margin-right: 24px;"><b>Sản xuất:</b> {int(cnc_stats['TT'])}/{int(cnc_stats['TC'])}</span>
+            <span><b>Vật tư:</b> {int(vt_stats['TT'])}/{int(vt_stats['TC'])}</span>
         </div>
         """, unsafe_allow_html=True)
-        
-        # Calculate Milestones (Sample logic - replace with real logic if available)
-        # Using Sample for now as requested by user previously, but strictly per contract
-        sample_milestones = [
-            {"date": "...", "desc": "Bắt đầu", "shop": "...", "van": "...", "sx": "...", "vt": "..."},
-        ]
-        # In real app, we'd calculate these from contract_files. For now, render placeholder or verify if user wants dynamic.
-        # User asked for "Timeline và Matrix". Assuming Matrix is key. Timeline might just be the Stats bar + Chart.
-        # Let's keep the Chart simple or empty if no real dates.
-        # Actually, let's just show the Matrix which is the "Detail" user cares about.
         
         # Display Matrix
         if contract_files:
@@ -1245,10 +1262,12 @@ if contracts_to_render:
                 total_height = 150 + (len(matrix) * 30) + 400
                 components.html(html_content, height=total_height, scrolling=True)
             else:
-                 st.info(f"Không có dữ liệu Matrix cho {contract_name}")
+                 st.info(f"ℹ️ Không có dữ liệu Matrix cho {contract_name}")
         else:
              if len(contracts_to_render) == 1:
-                 st.warning("Không tìm thấy dữ liệu file.")
+                 st.warning("⚠️ Không tìm thấy dữ liệu file.")
+             else:
+                 st.caption("⚠️ Chưa tải chi tiết. Vui lòng bấm 'Tải dữ liệu'.")
         
         st.markdown("---") 
 
