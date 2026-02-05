@@ -974,13 +974,24 @@ with st.sidebar:
         st.session_state.drive_root_id = YEAR_FOLDERS[selected_year]
         st.session_state.years_map = YEAR_FOLDERS
         
-        # Auto-load from SHARED cache on page load (from Drive if needed)
+        # Auto-load from SHARED cache on page load
         year_folder_id = YEAR_FOLDERS[selected_year]
+        
+        # DEBUG: Check if cache exists
+        cache_sheet_id = drive_client.find_file_in_folder(year_folder_id, f"CACHE_DB_{selected_year}")
+        if cache_sheet_id:
+            st.caption(f"✅ Cache found (ID: {cache_sheet_id[:5]}...)")
+        else:
+            st.caption("⚠️ Cache not found on Drive. Please Load Data.")
+
         if st.session_state.master_data is None:
             shared_data, _ = load_shared_cache(str(selected_year), year_folder_id)
             if shared_data:
                 st.session_state.master_data = shared_data
-                st.toast("⚡ Đã tải dữ liệu từ cache CHUNG!")
+                st.toast(f"⚡ Đã tải dữ liệu năm {selected_year} từ cache!")
+            else:
+                if cache_sheet_id:
+                     st.error("❌ Tìm thấy Cache nhưng không đọc được!")
         
         col1, col2 = st.columns(2)
         with col1:

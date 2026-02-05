@@ -21,47 +21,68 @@ class GoogleDriveClient:
         """
         self.creds = None
         self.service = None
+        self.sheets_service = None
         
-        # 1. Try Service Account first (Preferred for server/streamlit)
-        # Check Streamlit secrets first (for Cloud Deployment)
-        try:
-            import streamlit as st
-            if hasattr(st, 'secrets') and st.secrets and "gcp_service_account" in st.secrets:
-                self.creds = Credentials.from_service_account_info(
-                    st.secrets["gcp_service_account"], scopes=SCOPES)
-                self.service = build('drive', 'v3', credentials=self.creds)
-                print("[OK] Drive Client: Loaded from Streamlit secrets")
-                return
-        except Exception:
-            pass # Secrets not available, continue to file-based auth
-
-        if os.path.exists(credentials_path):
+        # 1. Try User Auth (OAuth) FIRST (Priority if manually authenticated)
+        if os.path.exists(token_path):
             try:
-                self.creds = Credentials.from_service_account_file(
-                    credentials_path, scopes=SCOPES)
-                print(f"[OK] Drive Client: Loaded from {credentials_path}")
-            except Exception as e:
-                print(f"[ERROR] Error loading service account: {e}")
-
-        # 2. If no service account, try User Auth (OAuth)
-        if not self.creds:
-            if os.path.exists(token_path):
                 with open(token_path, 'rb') as token:
                     self.creds = pickle.load(token)
-            
-            # If there are no (valid) credentials available, let the user log in.
-            if not self.creds or not self.creds.valid:
-                if self.creds and self.creds.expired and self.creds.refresh_token:
-                    self.creds.refresh(Request())
-                else:
-                    # Only run this locally; on Streamlit Cloud this won't work without secrets
-                    if os.path.exists('client_secret.json'):
-                        flow = InstalledAppFlow.from_client_secrets_file(
-                            'client_secret.json', SCOPES)
-                        self.creds = flow.run_local_server(port=0)
-                        # Save the credentials for the next run
-                        with open(token_path, 'wb') as token:
-                            pickle.dump(self.creds, token)
+                print(f"[OK] Drive Client: Loaded from {token_path} (User Auth)")
+            except Exception as e:
+                print(f"[ERROR] Error loading token.pickle: {e}")
+
+        # 2. Validate/Refresh User Auth
+        if self.creds and self.creds.valid:
+            pass # We are good
+        elif self.creds and self.creds.expired and self.creds.refresh_token:
+            try:
+                self.creds.refresh(Request())
+                print("[OK] Drive Client: Refreshed User Auth token")
+                # Save refreshed token
+                with open(token_path, 'wb') as token:
+                    pickle.dump(self.creds, token)
+            except Exception as e:
+                print(f"[ERROR] Token refresh failed: {e}")
+                self.creds = None # Fallback to Service Account
+
+        # 3. If no valid User Auth, try Service Account (Fallback/Server Default)
+        if not self.creds:
+            # Check Streamlit secrets first (for Cloud Deployment)
+            try:
+                import streamlit as st
+                if hasattr(st, 'secrets') and st.secrets and "gcp_service_account" in st.secrets:
+                    self.creds = Credentials.from_service_account_info(
+                        st.secrets["gcp_service_account"], scopes=SCOPES)
+                    self.service = build('drive', 'v3', credentials=self.creds)
+                    self.sheets_service = build('sheets', 'v4', credentials=self.creds)
+                    print("[OK] Drive Client: Loaded from Streamlit secrets")
+                    return
+            except Exception:
+                pass 
+
+            if os.path.exists(credentials_path):
+                try:
+                    self.creds = Credentials.from_service_account_file(
+                        credentials_path, scopes=SCOPES)
+                    print(f"[OK] Drive Client: Loaded from {credentials_path}")
+                except Exception as e:
+                    print(f"[ERROR] Error loading service account: {e}")
+
+        # 4. Interactive Login (Last Resort - Local Only)
+        if not self.creds:
+            # Only run this locally; on Streamlit Cloud this won't work without secrets
+            if os.path.exists('client_secret.json'):
+                try:
+                    flow = InstalledAppFlow.from_client_secrets_file(
+                        'client_secret.json', SCOPES)
+                    self.creds = flow.run_local_server(port=0)
+                    # Save the credentials for the next run
+                    with open(token_path, 'wb') as token:
+                        pickle.dump(self.creds, token)
+                    print("[OK] Drive Client: Interactive login successful")
+                except Exception as e:
+                    print(f"[ERROR] Interactive login failed: {e}")
         
         if self.creds:
             self.service = build('drive', 'v3', credentials=self.creds)
