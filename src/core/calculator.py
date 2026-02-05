@@ -650,6 +650,13 @@ def get_all_product_details(file_list: List[Dict]) -> Dict[str, List[Dict]]:
         file_input = f.get('content') or f.get('path')
         df = read_excel_data(file_input, 'VT_NHAP')
         if df is not None and 'key' in df.columns:
+            # DEBUG: Print columns and sample data
+            print(f"[DEBUG VT_NHAP] Columns: {df.columns.tolist()}")
+            if 'ten_hang' in df.columns:
+                print(f"[DEBUG VT_NHAP] ten_hang sample: {df['ten_hang'].head(3).tolist()}")
+            else:
+                print(f"[DEBUG VT_NHAP] WARNING: 'ten_hang' not in columns!")
+            
             df['key'] = df['key'].astype(str).str.strip()
             for idx, row in df.iterrows():
                 key = row['key']
@@ -681,6 +688,13 @@ def get_all_product_details(file_list: List[Dict]) -> Dict[str, List[Dict]]:
         file_input = f.get('content') or f.get('path')
         df = read_excel_data(file_input, 'VT_XUAT')
         if df is not None and 'key' in df.columns:
+            # DEBUG: Print columns and sample data
+            print(f"[DEBUG VT_XUAT] Columns: {df.columns.tolist()}")
+            if 'ten_hang' in df.columns:
+                print(f"[DEBUG VT_XUAT] ten_hang sample: {df['ten_hang'].head(3).tolist()}")
+            else:
+                print(f"[DEBUG VT_XUAT] WARNING: 'ten_hang' not in columns!")
+            
             df['key'] = df['key'].astype(str).str.strip()
             for idx, row in df.iterrows():
                 key = row['key']
