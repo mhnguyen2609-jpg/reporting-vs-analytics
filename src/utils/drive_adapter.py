@@ -196,6 +196,8 @@ class GoogleDriveClient:
                 status, done = downloader.next_chunk()
             return fh.getvalue()
         except Exception as e:
+            print(f"Drive Read Error ({file_id}): {e}")
+            return None
 
     # ============================================================
     # GOOGLE SHEETS METHODS (CACHE DB)
