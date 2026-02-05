@@ -1184,12 +1184,12 @@ def render_matrix_grids_html(matrix_df, details_map):
     
     def get_cell_style(delta):
         # delta = TC - TT
-        if delta == 0: return ('✔', Colors.STATUS_DONE)   # TT = TC: Complete (blue)
-        elif delta < 0: return ('➚', Colors.STATUS_EXTRA)  # TT > TC: Exceeded (orange) - Logic fixed from user feedback (Missing was Arrow before?) Wait, user said Arrow is Extra.
-        else: return ('✖', Colors.STATUS_MISSING)            # TT < TC: Incomplete (red)
+        if delta == 0: return (Icons.STATUS_DONE, Colors.STATUS_DONE)   
+        elif delta < 0: return (Icons.STATUS_EXTRA, Colors.STATUS_EXTRA)  
+        else: return (Icons.STATUS_MISSING, Colors.STATUS_MISSING)            
     
 
-    from src.ui.design import get_matrix_css, Colors
+    from src.ui.design import get_matrix_css, Colors, Icons
     
     css = get_matrix_css(num_groups)
     
@@ -1260,9 +1260,9 @@ def render_matrix_grids_html(matrix_df, details_map):
                      var stClass = '';
                      var stIcon = '';
                      
-                     if (st === 'Hoàn thành' || st === 'OK' || st === 'Đủ') {{ stClass = 'status-done'; stIcon = '✔ '; }}
-                     else if (st === 'Đang làm' || st === 'Thiếu') {{ stClass = 'status-missing'; stIcon = '✖ '; }}
-                     else if (st === 'Phát sinh' || st === 'Vượt KH' || st === 'Dư') {{ stClass = 'status-extra'; stIcon = '➚ '; }}
+                     if (st === 'Hoàn thành' || st === 'OK' || st === 'Đủ') {{ stClass = 'status-done'; stIcon = '{Icons.STATUS_DONE} '; }}
+                     else if (st === 'Đang làm' || st === 'Thiếu') {{ stClass = 'status-missing'; stIcon = '{Icons.STATUS_MISSING} '; }}
+                     else if (st === 'Phát sinh' || st === 'Vượt KH' || st === 'Dư') {{ stClass = 'status-extra'; stIcon = '{Icons.STATUS_EXTRA} '; }}
                      
                      row += '<td style="text-align:center;">' + (d.date || d.creation_date || '') + '</td>';
                      row += '<td class="' + stClass + '">' + stIcon + st + '</td>'; 

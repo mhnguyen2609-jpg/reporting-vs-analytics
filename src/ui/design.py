@@ -23,8 +23,12 @@ class Colors:
     CAT_VT_UT = "#f472b6"
     CAT_VT = "#a3e635"
 
-class Fonts:
-    """Font Settings"""
+class Icons:
+    """Centralized Icon Set"""
+    STATUS_DONE = "✔"      # Check
+    STATUS_MISSING = "✖"   # Cross
+    STATUS_EXTRA = "➚"     # Arrow
+
     PRIMARY = "Arial, sans-serif"
     SIZE_SMALL = "10px"
     SIZE_NORMAL = "11px"
