@@ -1184,129 +1184,25 @@ def render_matrix_grids_html(matrix_df, details_map):
     
     def get_cell_style(delta):
         # delta = TC - TT
-        if delta == 0: return ('✔', '#1E88E5')   # TT = TC: Complete (blue)
-        elif delta < 0: return ('➚', '#FFEB3B')  # TT > TC: Exceeded (yellow)
-        else: return ('✖', '#F44336')            # TT < TC: Incomplete (red)
+        if delta == 0: return ('✔', Colors.STATUS_DONE)   # TT = TC: Complete (blue)
+        elif delta < 0: return ('➚', Colors.STATUS_EXTRA)  # TT > TC: Exceeded (orange) - Logic fixed from user feedback (Missing was Arrow before?) Wait, user said Arrow is Extra.
+        else: return ('✖', Colors.STATUS_MISSING)            # TT < TC: Incomplete (red)
     
-    # Prepare details JSON for JavaScript
-    import json
-    details_json = json.dumps(details_map, ensure_ascii=False, default=str)
+
+    from src.ui.design import get_matrix_css, Colors
     
-    html = f"""
+    css = get_matrix_css(num_groups)
+    
+    html = f\"\"\"
     <!DOCTYPE html>
     <html>
     <head>
     <style>
-        * {{ box-sizing: border-box; font-family: Arial, sans-serif; }}
-        body {{ margin: 0; padding: 10px; background: transparent; }}
-        
-        .matrix-grid {{
-            display: grid;
-            grid-template-columns: repeat({num_groups}, 1fr);
-            gap: 10px;
-        }}
-        
-        .grid-column {{
-            display: flex;
-            flex-direction: column;
-        }}
-        
-        .column-header {{
-            display: grid;
-            grid-template-columns: 90px 220px repeat(5, 32px);
-            align-items: center;
-            background: #1e3a5f;
-            border: 1px solid #334155;
-        }}
-        
-        .column-header span {{
-            color: #e2e8f0;
-            font-size: 10px;
-            font-weight: 600;
-            text-align: center;
-            padding: 3px 2px;
-            border-right: 1px solid #334155;
-        }}
-        
-        .column-header span:nth-child(n+1) {{ text-align: center; }}
-        
-        .column-header span:nth-child(n+3) {{
-            writing-mode: vertical-rl;
-            text-orientation: mixed;
-            transform: rotate(180deg);
-            height: 70px;
-        }}
-        
-        .product-row {{
-            display: grid;
-            grid-template-columns: 90px 220px repeat(5, 32px);
-            border: 1px solid #334155;
-            align-items: stretch; /* Ensure cells stretch to full height */
-            border-top: none;
-            background: #0f172a;
-            color: #cbd5e1;
-            font-size: 11px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }}
-        
-        .product-row:hover {{
-            background: #334155;
-        }}
-        
-        .product-row.selected {{
-            background: #3b82f6 !important;
-            color: white !important;
-        }}
-        
-        .product-row span {{
-            padding: 4px 2px;
-            display: flex; /* Use flexbox for centering */
-            align-items: center;
-            justify-content: center;
-            border-right: 1px solid #334155;
-            overflow: hidden;
-            white-space: nowrap;
-            text-overflow: ellipsis;
-        }}
-        
-        .detail-row {{
-            grid-column: 1 / -1; /* Span all columns */
-            background: #1e293b;
-            border: 1px solid #475569;
-            margin-bottom: 10px;
-            padding: 10px;
-            display: none; /* Hidden by default */
-        }}
-        
-        .detail-table {{
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 11px;
-            color: #e2e8f0;
-        }}
-        
-        .detail-table th {{
-            background: #334155;
-            padding: 5px;
-            text-align: left;
-            border: 1px solid #475569;
-        }}
-        
-        .detail-table td {{
-            padding: 5px;
-            border: 1px solid #475569;
-        }}
-
-        .status-done {{ background-color: #1E88E5 !important; color: white; text-align: center; font-weight: 600; }}
-        .status-missing {{ background-color: #FF0000 !important; color: white; text-align: center; font-weight: 600; }}
-        .status-extra {{ background-color: #CC5500 !important; color: white; text-align: center; font-weight: 600; }}
-        
-        .empty-cell {{
-            visibility: hidden;
-            height: 22px;
-        }}
+        {css}
     </style>
+    <script>
+
+
     <script>
         var allDetails = {details_json};
         var selectedRow = null;
