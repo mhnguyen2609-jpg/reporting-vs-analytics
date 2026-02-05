@@ -1299,7 +1299,7 @@ def render_matrix_grids_html(matrix_df, details_map):
         }}
 
         .status-done {{ background-color: #1E88E5 !important; color: white; text-align: center; font-weight: 600; }}
-        .status-missing {{ background-color: #F44336 !important; color: white; text-align: center; font-weight: 600; }}
+        .status-missing {{ background-color: #FF0000 !important; color: white; text-align: center; font-weight: 600; }}
         .status-extra {{ background-color: #CC5500 !important; color: white; text-align: center; font-weight: 600; }}
         
         .empty-cell {{
