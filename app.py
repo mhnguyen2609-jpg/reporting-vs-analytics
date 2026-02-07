@@ -225,6 +225,21 @@ with st.sidebar:
             try:
                 with open(static_file, 'r', encoding='utf-8') as f:
                     st.session_state.master_data = json.load(f)
+                
+                # Load Details Cache if available
+                details_file = os.path.join("data", f"details_data_{default_year}.json")
+                if os.path.exists(details_file):
+                    with open(details_file, 'r', encoding='utf-8') as f:
+                        st.session_state.details_cache = json.load(f)
+                    
+                    # Reconstruct contracts_map (Name -> Path)
+                    # Keys in details_cache are Paths (e.g. D:\Cong viec\2026\ContractA)
+                    c_map = {}
+                    for path in st.session_state.details_cache.keys():
+                        name = os.path.basename(path)
+                        c_map[name] = path
+                    st.session_state.contracts_map = c_map
+                    
                 st.session_state.data_loaded = True
                 st.session_state.selected_year = default_year
                 st.session_state.data_source = "Static File (Pre-computed)"

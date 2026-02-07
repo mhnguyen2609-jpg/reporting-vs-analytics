@@ -3,11 +3,40 @@ import os
 import sys
 import json
 import pandas as pd
+import base64
+import numpy as np
+
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+# Mock Streamlit Session State BEFORE importing cache_manager
+class MockSessionState(dict):
+    def __init__(self):
+        self.details_cache = {}
+        self.contracts_map = {}
+        self.master_data = []
+
+import streamlit as st
+if not hasattr(st, 'session_state'):
+    st.session_state = MockSessionState()
+
 from src.core.cache_manager import load_all_contracts_data_local
 from src.core.constants import YEAR_FOLDERS
+
+# Custom JSON encoder
+class CustomEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, bytes):
+            return base64.b64encode(obj).decode('utf-8')
+        if isinstance(obj, pd.Timestamp):
+            return obj.strftime('%Y-%m-%d')
+        if isinstance(obj, (np.int_, np.intc, np.intp, np.int8,
+            np.int16, np.int32, np.int64, np.uint8,
+            np.uint16, np.uint32, np.uint64)):
+            return int(obj)
+        if isinstance(obj, (np.float_, np.float16, np.float32, np.float64)):
+            return float(obj)
+        return super().default(obj)
 
 def precompute_data(year=2026, local_root="D:\\Cong viec"):
     print(f"🚀 Starting pre-computation for year {year} at {local_root}")
@@ -30,45 +59,24 @@ def precompute_data(year=2026, local_root="D:\\Cong viec"):
             os.makedirs(output_dir)
             
         output_file = os.path.join(output_dir, f"master_data_{year}.json")
-        
-        # Custom JSON encoder for datetime/bytes
-        class CustomEncoder(json.JSONEncoder):
-            def default(self, obj):
-                if isinstance(obj, bytes):
-                    return "<binary_data_skipped>" # or base64 if needed, but for master table maybe skip?
-                    # Wait, details need content.
-                    # If we skip content, details view won't work.
-                    # We should encode to base64 if small, or save separately?
-                    # For now, let's skip binary content for the MASTER file if it's too big,
-                    # BUT the user wants details data pre-calculated too.
-                    # If we save everything to one JSON it might be huge (50MB+).
-                    # Streamlit handles 50MB fine if loaded once.
-                    pass
-                if isinstance(obj, pd.Timestamp):
-                    return obj.strftime('%Y-%m-%d')
-                return super().default(obj)
-                
-        # Actually, `load_all_contracts_data_local` returns a list of Dicts.
-        # But wait, does it include FILE CONTENT? 
-        # `scan_project_files` -> `read_excel` -> Returns DataFrames? No, `scan` returns metadata.
-        # `load_all_contracts_data_local` calls `calculate_aggregates` which reads files.
-        # But `master_data` usually containsAGGREGATED stats, not raw file content.
-        # EXCEPT for `details_cache`.
-        
-        # Let's check what `master_data` structure is.
-        # It is a list of dicts with keys like 'contract', 'CAD', 'CNC', etc.
-        # It does NOT contain file content.
-        # So it is small!
+        details_file = os.path.join(output_dir, f"details_data_{year}.json")
         
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2, cls=CustomEncoder)
             
+        # Get Details from Session State
+        details = st.session_state.details_cache
+        with open(details_file, 'w', encoding='utf-8') as f:
+            json.dump(details, f, ensure_ascii=False, cls=CustomEncoder)
+
         print(f"✅ Data saved to {output_file}")
+        print(f"✅ Details saved to {details_file}")
         
     except Exception as e:
         print(f"❌ Error: {e}")
         import traceback
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     # Allow command line args
