@@ -215,12 +215,27 @@ with st.sidebar:
     # Ensure session state structure
     if "master_data" not in st.session_state: st.session_state.master_data = []
 
-    print("DEBUG: Auto-load Check (DISABLED)")
-    # --- AUTO-LOAD DATA ON STARTUP (2026) ---
+    # --- STATIC DATA LOADING (PRE-COMPUTED) ---
+    default_year = 2026
+    static_file = os.path.join("data", f"master_data_{default_year}.json")
+    
     if "data_loaded" not in st.session_state:
-         # TEMPORARILY DISABLED TO DEBUG SEGFAULT
-         st.session_state.data_loaded = True # Skip
-         pass
+        if os.path.exists(static_file):
+            print(f"DEBUG: Found static data {static_file}")
+            try:
+                with open(static_file, 'r', encoding='utf-8') as f:
+                    st.session_state.master_data = json.load(f)
+                st.session_state.data_loaded = True
+                st.session_state.selected_year = default_year
+                st.session_state.data_source = "Static File (Pre-computed)"
+                st.toast(f"✅ Đã tải dữ liệu tĩnh năm {default_year}!", icon="🚀")
+            except Exception as e:
+                print(f"DEBUG: Error loading static file: {e}")
+        else:
+             print("DEBUG: No static file found. Waiting for manual load.")
+             # TEMPORARILY DISABLED AUTO-LOAD TO DEBUG SEGFAULT
+             st.session_state.data_loaded = True # Skip auto-load attempt 
+             pass
          
          # ----------------------------------------------------
          # ORIGINAL LOGIC BELOW (COMMENTED OUT)
