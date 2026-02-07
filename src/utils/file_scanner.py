@@ -68,23 +68,20 @@ def scan_project_files(target_dir: str = DEFAULT_ROOT_PATH) -> List[Dict]:
                 })
     return results
 
-def scan_drive_files(drive_client: GoogleDriveClient, folder_id: str, folder_name: str = None) -> List[Dict]:
+def scan_drive_files(drive_client: GoogleDriveClient, folder_id: str, folder_name: str = None,
+                     current_depth: int = 0, max_depth: int = 5, visited: set = None) -> List[Dict]:
     """
     Recursively scans for Excel files in the specified Google Drive folder and its subfolders.
-    
-    Args:
-        drive_client: Instance of GoogleDriveClient.
-        folder_id: The Drive folder ID to scan (Contract folder ID).
-        folder_name: Optional folder name for context-aware identification.
-        
-    Returns:
-        List of dictionaries containing file metadata:
-        {
-            'file_id': Drive File ID,
-            'filename': filename,
-            'source_type': identified type or None
-        }
+    Limits recursion depth to prevent infinite loops.
     """
+    if visited is None: visited = set()
+    if folder_id in visited: return []
+    visited.add(folder_id)
+    
+    if current_depth > max_depth:
+        print(f"⚠️ Max depth {max_depth} reached at folder {folder_name or folder_id}")
+        return []
+
     results = []
     
     # 1. Get all Excel files directly in this folder
@@ -105,7 +102,14 @@ def scan_drive_files(drive_client: GoogleDriveClient, folder_id: str, folder_nam
     # 2. Recursively scan subfolders
     subfolders = drive_client.list_folders(folder_id)
     for subfolder in subfolders:
-        sub_results = scan_drive_files(drive_client, subfolder['id'], subfolder['name'])
+        sub_results = scan_drive_files(
+            drive_client, 
+            subfolder['id'], 
+            subfolder['name'],
+            current_depth=current_depth + 1,
+            max_depth=max_depth,
+            visited=visited
+        )
         results.extend(sub_results)
             
     return results

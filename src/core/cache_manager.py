@@ -3,6 +3,7 @@ import streamlit as st
 import os
 import json
 import hashlib
+import gc
 from pathlib import Path
 from src.utils.drive_adapter import GoogleDriveClient
 from src.utils.file_scanner import scan_drive_files, scan_project_files
@@ -408,6 +409,13 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False, 
                 'nhom_hang_tt': data.get('nhom_hang_tt', 0),
                 'nhom_percent': data.get('nhom_percent', 0)
             })
+        
+        # Explicit GC to prevent OOM
+        try:
+            del files
+            del aggs
+            gc.collect()
+        except: pass
     
     # Update Session State Details Cache
     st.session_state.details_cache = updated_details

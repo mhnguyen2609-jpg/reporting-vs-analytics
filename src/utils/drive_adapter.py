@@ -243,6 +243,14 @@ class GoogleDriveClient:
         if not self.service: return None
         
         try:
+            # 1. Check file size first (Limit 50MB)
+            meta = self.service.files().get(fileId=file_id, fields='size').execute()
+            if meta and 'size' in meta:
+                size_mb = int(meta.get('size', 0)) / (1024 * 1024)
+                if size_mb > 50:
+                    print(f"⚠️ Skipping file {file_id}: Size {size_mb:.2f}MB exceeds limit.")
+                    return None
+
             request = self.service.files().get_media(fileId=file_id)
             fh = io.BytesIO()
             downloader = MediaIoBaseDownload(fh, request)
