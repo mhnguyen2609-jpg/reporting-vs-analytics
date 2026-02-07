@@ -48,7 +48,7 @@ def render_master_table_html(data):
     <head>
     <style>
         * {{ box-sizing: border-box; font-family: {Labels.Fonts.PRIMARY if hasattr(Labels, 'Fonts') else 'Arial, sans-serif'}; }}
-        body {{ margin: 0; padding: 4px; background: #1a1a2e; }}
+        body {{ margin: 0; padding: 4px; background: transparent; }}
         .master-table {{
             width: 100%;
             border-collapse: collapse;
@@ -62,7 +62,7 @@ def render_master_table_html(data):
             white-space: nowrap;
         }}
         .master-table th {{
-            background: #1a1a2e;
+            background: transparent;
             font-weight: 600;
             text-align: center;
             position: sticky;
@@ -70,7 +70,7 @@ def render_master_table_html(data):
             z-index: 10;
         }}
         .master-table td {{
-            background: #1a1a2e;
+            background: transparent;
         }}
         .contract-cell {{ text-align: center; font-weight: 500; }}
         .category-cell {{ text-align: center; font-weight: 500; }}
@@ -225,7 +225,7 @@ def render_timeline_html(milestones):
     <head>
     <style>
         * {{ box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }}
-        body {{ margin: 0; padding: 20px 0; background: #0f172a; overflow-x: auto; }}
+        body {{ margin: 0; padding: 20px 0; background: transparent; overflow-x: auto; }}
         
         .timeline-wrapper {{
             width: {total_width}px;
@@ -649,7 +649,7 @@ def render_material_stats_html(df):
             font-family: Arial, sans-serif;
         }}
         .mat-table th {{
-            background: #1e3a5f;
+            background: transparent;
             border: 1px solid #334155;
             padding: 8px;
             text-align: center;
@@ -661,10 +661,10 @@ def render_material_stats_html(df):
             border: 1px solid #334155;
             padding: 8px 12px;
             vertical-align: middle;
-            background: #0f172a;
+            background: transparent;
         }}
         .mat-table tr:hover td {{
-            background: #1e293b;
+            background: rgba(255,255,255,0.05);
         }}
         .col-stt {{ width: 40px; text-align: center; }}
         .col-qty {{ width: 70px; text-align: center; }}

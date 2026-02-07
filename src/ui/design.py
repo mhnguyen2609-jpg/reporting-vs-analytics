@@ -161,7 +161,7 @@ def get_matrix_css(num_groups):
             border: 1px solid {Colors.BORDER};
             align-items: stretch;
             border-top: none;
-            background: {Colors.BACKGROUND_DARK};
+            background: transparent;
             color: {Colors.TEXT_PRIMARY};
             font-size: {Fonts.SIZE_NORMAL};
             cursor: pointer;
@@ -198,7 +198,7 @@ def get_matrix_css(num_groups):
         
         .product-row span:first-child {{
             text-align: left;
-            background: #1e293b;
+            background: transparent;
             font-weight: 500;
         }}
         
@@ -212,7 +212,7 @@ def get_matrix_css(num_groups):
             display: none;
             grid-column: 1 / -1;
             border: 2px solid {Colors.BORDER};
-            background: {Colors.BACKGROUND_DARK};
+            background: transparent;
             margin: 5px 0;
         }}
         
@@ -239,7 +239,7 @@ def get_matrix_css(num_groups):
             padding: 6px 10px;
             border: 1px solid {Colors.BORDER};
             color: {Colors.TEXT_LIGHT};
-            background: {Colors.BACKGROUND_DARK};
+            background: transparent;
         }}
         
         .detail-table .product-cell {{
@@ -247,7 +247,7 @@ def get_matrix_css(num_groups):
             vertical-align: middle;
             font-weight: bold;
             font-size: 14px;
-            background: #1e293b;
+            background: transparent;
             width: 120px;
         }}
         
