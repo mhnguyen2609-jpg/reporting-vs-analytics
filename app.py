@@ -7,6 +7,8 @@ import math
 import io
 import time
 
+print("DEBUG: Starting app.py...")
+
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -43,6 +45,11 @@ st.set_page_config(
 st.markdown("""
 <style>
     html, body, [class*="css"] { font-family: Arial, sans-serif; }
+    
+    /* Transparent Dataframe */
+    [data-testid="stDataFrame"] { background-color: transparent !important; }
+    [data-testid="stTable"] { background-color: transparent !important; }
+    .stDataFrame { background-color: transparent !important; }
     
     /* 1. Sidebar Background Matching & Z-Index Promotion */
     section[data-testid="stSidebar"] {
@@ -205,57 +212,71 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
     # AUTO-LOAD LOGIC
-    # AUTO-LOAD LOGIC
-    if not st.session_state.is_initialized:
-        # 1. Determine Target Source & Year
-        target_year = '2026'
-        
-        # Check Local Presence
-        has_local = os.path.exists(st.session_state.local_root_path)
-        
-        # Deciding Default Source: Prefer Local if available and configured, else Drive
-        # But for this specific User Request, let's allow "Smart" default
-        if has_local:
-             source = 'Local HDD (Offline)'
-             st.session_state.data_source = source
-        else:
-             source = 'Google Drive'
-             st.session_state.data_source = source
+    # Ensure session state structure
+    if "master_data" not in st.session_state: st.session_state.master_data = []
 
-        st.session_state.selected_year = target_year
-        start_auto_load = True
-            
-        if start_auto_load:
-            # 2. Main Area Loader Placeholder
-            loader_placeholder = global_loader_placeholder
-            
-            def update_progress(percent, message):
-                loader_placeholder.markdown(f"""
-                <div class="loader-overlay">
-                    <div class="loader-ring"><div></div><div></div><div></div><div></div></div>
-                    <div class="loading-text">{message}</div>
-                    <div class="loading-percent">{int(percent * 100)}%</div>
-                </div>
-                """, unsafe_allow_html=True)
+    print("DEBUG: Auto-load Check (DISABLED)")
+    # --- AUTO-LOAD DATA ON STARTUP (2026) ---
+    if "data_loaded" not in st.session_state:
+         # TEMPORARILY DISABLED TO DEBUG SEGFAULT
+         st.session_state.data_loaded = True # Skip
+         pass
+         
+         # ----------------------------------------------------
+         # ORIGINAL LOGIC BELOW (COMMENTED OUT)
+         # ----------------------------------------------------
+         # AUTO-LOAD LOGIC
+         # AUTO-LOAD LOGIC
+         # if not st.session_state.is_initialized:
+         #     # 1. Determine Target Source & Year
+         #     target_year = '2026'
+             
+         #     # Check Local Presence
+         #     has_local = os.path.exists(st.session_state.local_root_path)
+             
+         #     # Deciding Default Source: Prefer Local if available and configured, else Drive
+         #     # But for this specific User Request, let's allow "Smart" default
+         #     if has_local:
+         #          source = 'Local HDD (Offline)'
+         #          st.session_state.data_source = source
+         #     else:
+         #          source = 'Google Drive'
+         #          st.session_state.data_source = source
 
-            try:
-                # Load Master Data based on Source
-                if source == 'Google Drive':
-                    st.session_state.drive_root_id = YEAR_FOLDERS.get(target_year)
-                    st.session_state.years_map = YEAR_FOLDERS
-                    st.session_state.master_data = load_all_contracts_data_logic(
-                        target_year, YEAR_FOLDERS, progress_callback=update_progress)
-                else: # Local HDD
-                     st.session_state.master_data = load_all_contracts_data_local(
-                         st.session_state.local_root_path, target_year, progress_callback=update_progress)
-            
-            except Exception as e:
-                st.error(f"Lỗi khởi động: {e}")
-                
-            st.session_state.is_initialized = True
-            loader_placeholder.empty()
-            st.rerun()
-            
+         #     st.session_state.selected_year = target_year
+         #     start_auto_load = True
+                 
+         #     if start_auto_load:
+         #         # 2. Main Area Loader Placeholder
+         #         loader_placeholder = global_loader_placeholder
+                 
+         #         def update_progress(percent, message):
+         #             loader_placeholder.markdown(f"""
+         #             <div class="loader-overlay">
+         #                 <div class="loader-ring"><div></div><div></div><div></div><div></div></div>
+         #                 <div class="loading-text">{message}</div>
+         #                 <div class="loading-percent">{int(percent * 100)}%</div>
+         #             </div>
+         #             """, unsafe_allow_html=True)
+
+         #         try:
+         #             # Load Master Data based on Source
+         #             if source == 'Google Drive':
+         #                 st.session_state.drive_root_id = YEAR_FOLDERS.get(target_year)
+         #                 st.session_state.years_map = YEAR_FOLDERS
+         #                 st.session_state.master_data = load_all_contracts_data_logic(
+         #                     target_year, YEAR_FOLDERS, progress_callback=update_progress)
+         #             else: # Local HDD
+         #                  st.session_state.master_data = load_all_contracts_data_local(
+         #                      st.session_state.local_root_path, target_year, progress_callback=update_progress)
+                 
+         #         except Exception as e:
+         #             st.error(f"Lỗi khởi động: {e}")
+                     
+         #         st.session_state.is_initialized = True
+         #         loader_placeholder.empty()
+         #         st.rerun()
+                 
     # SOURCE CONTROLS
     if source == 'Google Drive':
         years_list = list(YEAR_FOLDERS.keys())
@@ -316,6 +337,25 @@ with st.sidebar:
         if root_path and os.path.exists(root_path):
             st.session_state.local_root_path = root_path
             years = get_available_years_local(root_path)
+            st.markdown(f"""
+            <div style="background: transparent; border: 1px solid rgba(255,255,255,0.1); padding: 16px; border-radius: 10px; margin-bottom: 20px;">
+                <h3 style="margin-top:0; color: #cbd5e1;">📊 Thống kê Tổng quan ({st.session_state.selected_year})</h3>
+                <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 24px; font-weight: bold; color: #38bdf8;">{0}</div>
+                        <div style="font-size: 13px; color: #94a3b8;">Hợp đồng</div>
+                    </div>
+                     <div style="text-align: center;">
+                        <div style="font-size: 24px; font-weight: bold; color: {'#f87171'};">{'N/A'}</div>
+                        <div style="font-size: 13px; color: #94a3b8;">Trạng thái</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 24px; font-weight: bold; color: #fbbf24;">{0.0:.1f}%</div>
+                        <div style="font-size: 13px; color: #94a3b8;">Tiến độ TB</div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             if years:
                 selected_year = st.selectbox(Labels.LABEL_YEAR, years)
                 st.session_state.selected_year = selected_year
@@ -485,7 +525,7 @@ elif st.session_state.current_page == "Chi tiết dự án":
 
             # Render Stats Bar
             st.markdown(f"""
-            <div style="background: #1e293b; padding: 8px 16px; border-radius: 8px; margin: 8px 0; font-size: 13px; color: #cbd5e1; font-family: Arial, sans-serif;">
+            <div style="background: transparent; border: 1px solid rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 8px; margin: 8px 0; font-size: 13px; color: #cbd5e1; font-family: Arial, sans-serif;">
                 <span style="margin-right: 24px;"><b>Shop duyệt:</b> {int(cad_stats['TT'])}/{int(cad_stats['TC'])}</span>
                 <span style="margin-right: 24px;"><b>Ván:</b> {int(van_stats['TT'])}/{int(van_stats['TC'])}</span>
                 <span style="margin-right: 24px;"><b>Sản xuất:</b> {int(cnc_stats['TT'])}/{int(cnc_stats['TC'])}</span>
