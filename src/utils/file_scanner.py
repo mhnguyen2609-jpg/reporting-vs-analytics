@@ -27,12 +27,21 @@ def identify_source_type(filename: str, folder_name: str = None) -> Optional[str
             match = type_name
             break
             
+    # Fallback: Check Folder Name if Filename has no match
+    if not match and folder_upper:
+        for type_name, keyword in all_keywords:
+            # Strict check for folder? Or contains?
+            # "DMVTN" folder containing "data.xlsx" -> match VT_NHAP.
+            if keyword in folder_upper:
+                match = type_name
+                break
+
     # Apply Overrides based on Folder/Prefix context
     if match:
         # If match is VT_NHAP (DMVTN) but folder is XUAT or prefix is TC -> Override to VT_XUAT
         if match == 'VT_NHAP':
              if folder_upper == 'XUAT' or filename_upper.startswith('TC'):
-                 return 'VT_XUAT'
+                 match = 'VT_XUAT'
     
     return match
 
@@ -92,12 +101,12 @@ def scan_drive_files(drive_client: GoogleDriveClient, folder_id: str, folder_nam
         file_id = f['id']
         source_type = identify_source_type(name, folder_name)
         
-        if source_type:
-            results.append({
-                'file_id': file_id,
-                'filename': name,
-                'source_type': source_type,
-            })
+        # Include all Excel files, even if type is unknown
+        results.append({
+            'file_id': file_id,
+            'filename': name,
+            'source_type': source_type,
+        })
     
     # 2. Recursively scan subfolders
     subfolders = drive_client.list_folders(folder_id)

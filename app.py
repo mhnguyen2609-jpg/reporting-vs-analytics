@@ -493,6 +493,14 @@ elif st.session_state.current_page == "Chi tiết dự án":
             </div>
             """, unsafe_allow_html=True)
 
+            # DEBUG: Check for unknown files
+            unknown_files = [f['filename'] for f in contract_files if not f.get('source_type')]
+            if unknown_files:
+                with st.expander(f"⚠️ {len(unknown_files)} File không nhận diện được (Click để xem)", icon="⚠️"):
+                    st.write("Các file sau không đúng quy tắc đặt tên (DMVTN, SHOP, v.v.):")
+                    st.write(unknown_files)
+                    st.caption("Vui lòng đổi tên file hoặc thư mục chứa file để phần mềm nhận diện.")
+
             # --- TIMELINE ---
             st.markdown("#### 📅 Trục Thời Gian")
             
