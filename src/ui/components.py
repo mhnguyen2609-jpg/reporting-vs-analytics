@@ -59,6 +59,7 @@ def render_master_table_html(data):
             padding: 6px 10px;
             color: #ffffff;
             vertical-align: middle;
+            white-space: nowrap;
         }}
         .master-table th {{
             background: #1a1a2e;
@@ -75,21 +76,20 @@ def render_master_table_html(data):
         .category-cell {{ text-align: center; font-weight: 500; }}
         .sub-cell {{ text-align: center; font-size: 12px; }}
         .number-cell {{ text-align: center; }}
-        .percent-cell {{ padding: 0 !important; position: relative; overflow: hidden; }}
-        .progress-wrapper {{ position: relative; width: 100%; height: 100%; min-height: 28px; display: flex; align-items: center; justify-content: center; }}
-        .progress-fill {{ position: absolute; left: 0; top: 0; height: 100%; z-index: 1; }}
-        .progress-text {{ position: relative; z-index: 2; color: white; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }}
+        .percent-cell {{ text-align: center; }}
+        .progress-text {{ color: white; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }}
     </style>
     </head>
     <body>
+    <div style="overflow-x: auto; width: 100%;">
     <table class="master-table">
         <thead>
             <tr>
-                <th style="width:20%;">{Labels.MASTER_COL_CONTRACT}</th>
-                <th colspan="2" style="width:25%;">{Labels.MASTER_COL_CATEGORY}</th>
-                <th style="width:15%;">{Labels.MASTER_COL_VOLUME}</th>
-                <th style="width:15%;">{Labels.MASTER_COL_COMPLETE}</th>
-                <th style="width:12%;">%</th>
+                <th>{Labels.MASTER_COL_CONTRACT}</th>
+                <th colspan="2">{Labels.MASTER_COL_CATEGORY}</th>
+                <th>{Labels.MASTER_COL_VOLUME}</th>
+                <th>{Labels.MASTER_COL_COMPLETE}</th>
+                <th>%</th>
             </tr>
         </thead>
         <tbody>
@@ -98,14 +98,10 @@ def render_master_table_html(data):
     def render_progress_cell(percent, tc):
         if tc > 0:
             color = get_progress_color(percent)
-            width = min(percent, 100)
-            return f'''<td class="percent-cell">
-                <div class="progress-wrapper">
-                    <div class="progress-fill" style="width:{width}%; background:{color};"></div>
-                    <span class="progress-text">{percent:.1f}%</span>
-                </div>
-            </td>'''
-        return '<td class="percent-cell"><div class="progress-wrapper"></div></td>'
+            pct_val = min(percent, 100)
+            bg_style = f"background: linear-gradient(90deg, {color} {pct_val}%, transparent {pct_val}%);"
+            return f'<td class="percent-cell" style="{bg_style}"><span class="progress-text">{percent:.1f}%</span></td>'
+        return '<td class="percent-cell"></td>'
     
     sorted_contracts = sorted(contracts_data.keys(), key=natural_sort_key)
 
@@ -161,74 +157,314 @@ def render_master_table_html(data):
         html += f'<td class="number-cell">{int(vtut["tt"]) if vtut["tt"]>0 else ""}</td>'
         html += render_progress_cell(vtut['percent'], vtut['tc']) + '</tr>'
 
-    html += "</tbody></table></body></html>"
+    html += "</tbody></table></div></body></html>"
     return html
 
 def render_timeline_html(milestones):
-    """Render timeline with alternating above/below milestones."""
-    html = """
+    """Render multi-tier color-coded timeline with card-style info boxes."""
+    if not milestones: return ""
+    
+    from datetime import datetime
+    
+    from src.ui.design import Colors, Icons, Labels, TimelineDesign, get_matrix_css
+    
+    # Color mapping for milestone types
+    TYPE_COLORS = TimelineDesign.TYPE_COLORS
+    
+    # 1. Parse Dates
+    parsed_ms = []
+    valid_dates = []
+    
+    for m in milestones:
+        d_str = m.get('full_date', m.get('date'))
+        dt = None
+        try:
+            dt = datetime.strptime(d_str, "%Y-%m-%d")
+        except:
+            try:
+                dt = datetime.strptime(d_str, "%d/%m/%Y")
+            except:
+                pass
+        
+        if dt:
+            # Determine type from desc
+            desc = m.get('desc', '').lower()
+            m_type = 'default'
+            if 'shop' in desc: m_type = 'shop'
+            elif 'ván' in desc or 'van' in desc: m_type = 'van'
+            elif 'sản xuất' in desc or 'sx' in desc or 'cnc' in desc: m_type = 'sx'
+            elif 'vật tư' in desc or 'vt:' in desc: m_type = 'vt'
+            elif 'kế hoạch' in desc: m_type = 'ke_hoach'
+            elif 'ghi chú' in desc: m_type = 'ghi_chu'
+            
+            parsed_ms.append({**m, '_dt': dt, '_type': m_type})
+            valid_dates.append(dt)
+    
+    if not valid_dates: return "<p>Không thể hiển thị Timeline.</p>"
+    
+    min_date = min(valid_dates)
+    max_date = max(valid_dates)
+    total_days = (max_date - min_date).days
+    
+    # 2. Width Calculation
+    dataset_span = max(1, total_days)
+    pixels_per_day = TimelineDesign.PIXELS_PER_DAY
+    min_width_for_milestones = len(milestones) * TimelineDesign.MIN_CARD_WIDTH
+    bar_width = max(600, dataset_span * pixels_per_day, min_width_for_milestones)
+    
+    padding_left = TimelineDesign.PADDING_LEFT
+    padding_right = TimelineDesign.PADDING_RIGHT
+    total_width = padding_left + bar_width + padding_right
+    
+    # Tier heights
+    TIER_HEIGHTS = TimelineDesign.TIER_HEIGHTS
+    
+    html = f"""
     <!DOCTYPE html>
     <html>
     <head>
     <style>
-        * { box-sizing: border-box; font-family: Arial, sans-serif; }
-        body { margin: 0; padding: 20px 40px; background: #0f172a; }
-        .timeline-wrapper { position: relative; height: 120px; }
-        .timeline-bar { position: absolute; top: 50%; left: 0; right: 0; height: 3px; background: #0ea5e9; transform: translateY(-50%); }
-        .milestones { display: flex; justify-content: space-between; position: relative; height: 100%; align-items: center; }
-        .milestone { position: relative; display: flex; flex-direction: column; align-items: center; }
-        .milestone-dot { width: 12px; height: 12px; background: #f97316; border-radius: 50%; position: relative; z-index: 2; }
-        .milestone-above { position: absolute; bottom: 50%; display: flex; flex-direction: column; align-items: center; }
-        .milestone-below { position: absolute; top: 50%; display: flex; flex-direction: column; align-items: center; }
-        .milestone-line-up { width: 2px; height: 25px; background: #f97316; }
-        .milestone-line-down { width: 2px; height: 25px; background: #f97316; }
-        .milestone-info { font-size: 11px; color: #f97316; text-align: center; white-space: nowrap; }
-        .milestone-date { font-weight: 700; font-size: 12px; margin-bottom: 2px; }
-        .milestone-desc { color: #94a3b8; font-size: 10px; }
-        .milestone-detail { color: #e2e8f0; font-size: 10px; line-height: 1.4; }
+        * {{ box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }}
+        body {{ margin: 0; padding: 20px 0; background: #0f172a; overflow-x: auto; }}
+        
+        .timeline-wrapper {{
+            width: {total_width}px;
+            min-height: 600px;
+            position: relative;
+        }}
+        
+        .timeline-bar {{
+            position: absolute;
+            top: 50%;
+            left: {padding_left}px;
+            width: {bar_width}px;
+            height: 6px;
+            background: linear-gradient(90deg, #0ea5e9, #06b6d4);
+            transform: translateY(-50%);
+            border-radius: 3px;
+            z-index: 1;
+        }}
+        
+        .milestone {{
+            position: absolute;
+            top: 50%;
+            z-index: 10;
+        }}
+        
+        .milestone-dot {{
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 3px solid #0f172a;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 15;
+            transition: all 0.3s ease;
+        }}
+
+        .milestone-dot.diamond {{
+            border-radius: 2px;
+            transform: translate(-50%, -50%) rotate(45deg);
+        }}
+        
+        .milestone-dot.star {{
+            border: none;
+            width: 22px; 
+            height: 22px;
+            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+            background-color: #dc2626; /* Fallback */
+        }}
+
+        .milestone-dot.square {{
+            border-radius: 0;
+            width: 14px;
+            height: 14px;
+        }}
+        
+        .milestone-line {{
+            position: absolute;
+            width: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 5;
+        }}
+        
+        .milestone-card {{
+            position: absolute;
+            width: 220px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            z-index: 20;
+            left: 0;  /* Align card to start from dot position */
+        }}
+        
+        .card-date {{
+            font-weight: 700;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }}
+        
+        .card-desc {{
+            font-size: 11px;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            opacity: 0.95;
+        }}
+        
+        .card-details {{
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+            font-size: 10px;
+            opacity: 0.85;
+        }}
+        
+        /* Legend */
+        .legend {{
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 0; /* Remove padding */
+            background: transparent; /* Transparent background */
+            border: none; /* No border */
+            border-radius: 0;
+            font-size: 13px; /* Slightly larger text */
+            color: #e2e8f0;
+            z-index: 1000;
+            box-shadow: none; /* No shadow */
+            min-width: 140px;
+        }}
+        .legend-item {{
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }}
+        .legend-dot {{
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }}
+        .legend-dot.diamond {{ border-radius: 1px; transform: rotate(45deg); }}
+        .legend-dot.star {{ 
+            width: 12px; height: 12px; border-radius: 0; 
+            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); 
+        }}
+        .legend-dot.square {{ border-radius: 0; }}
     </style>
     </head>
     <body>
     <div class="timeline-wrapper">
         <div class="timeline-bar"></div>
-        <div class="milestones">
     """
     
-    for i, m in enumerate(milestones):
-        is_above = (i % 2 == 0)
-        info_block = f"""
-            <div class="milestone-info">
-                <div class="milestone-date">{m['date']}</div>
-                <div class="milestone-desc">{m['desc']}</div>
-                <div class="milestone-detail">Shop duyệt: {m['shop']}</div>
-                <div class="milestone-detail">Ván: {m['van']}</div>
-                <div class="milestone-detail">Sản xuất: {m['sx']}</div>
-                <div class="milestone-detail">Vật tư: {m['vt']}</div>
-            </div>
-        """
-        
-        if is_above:
-            html += f"""
-            <div class="milestone">
-                <div class="milestone-above">
-                    {info_block}
-                    <div class="milestone-line-up"></div>
-                </div>
-                <div class="milestone-dot"></div>
-            </div>
-            """
-        else:
-            html += f"""
-            <div class="milestone">
-                <div class="milestone-dot"></div>
-                <div class="milestone-below">
-                    <div class="milestone-line-down"></div>
-                    {info_block}
-                </div>
-            </div>
-            """
+    sorted_ms = sorted(parsed_ms, key=lambda x: x['_dt'])
     
-    html += "</div></div></body></html>"
+    # Tier assignment algorithm - prevent overlap
+    # Track occupied positions: {tier: [(left_x, right_x), ...]}
+    tier_occupied = {0: [], 1: [], 2: [], 3: []}  # 0,1 = above; 2,3 = below
+    
+    for i, m in enumerate(sorted_ms):
+        # Position calculation
+        if total_days > 0:
+            days_from_start = (m['_dt'] - min_date).days
+            position_px = padding_left + (days_from_start / total_days) * bar_width
+        else:
+            position_px = padding_left + (i / max(1, len(sorted_ms)-1)) * bar_width if len(sorted_ms) > 1 else padding_left + bar_width/2
+        
+        card_width = 220
+        # Cards are now left-aligned (start at dot position, extend right)
+        card_left = position_px
+        card_right = position_px + card_width
+        
+        # Find best tier (alternate above/below, then find non-overlapping tier)
+        prefer_above = (i % 2 == 0)
+        
+        def find_tier(is_above):
+            tiers = [0, 1] if is_above else [2, 3]
+            for t in tiers:
+                overlap = False
+                for (l, r) in tier_occupied[t]:
+                    if not (card_right < l - 20 or card_left > r + 20):
+                        overlap = True
+                        break
+                if not overlap:
+                    return t
+            return tiers[-1]  # Fallback to furthest tier
+        
+        tier = find_tier(prefer_above)
+        if tier is None:
+            tier = find_tier(not prefer_above)  # Try other side
+        
+        tier_occupied[tier].append((card_left, card_right))
+        
+        is_above = tier < 2
+        tier_level = tier if tier < 2 else tier - 2
+        height = TIER_HEIGHTS[tier_level]
+        
+        # Colors
+        colors = TYPE_COLORS.get(m['_type'], TYPE_COLORS['default'])
+        
+        # Shape
+        shape_class = "circle"
+        # Check for aggregate data keys
+        if any(k in m for k in ['shop', 'van', 'sx', 'vt']):
+            shape_class = "square"
+        elif m['_type'] == 'ke_hoach': 
+            shape_class = "star"
+        elif m['_type'] == 'ghi_chu': 
+            shape_class = "diamond"
+
+        # Build card content
+        details_html = ""
+        if 'shop' in m: details_html += f'Shop: {m["shop"]} | '
+        if 'van' in m: details_html += f'Ván: {m["van"]} | '
+        if 'sx' in m: details_html += f'SX: {m["sx"]} | '
+        if 'vt' in m: details_html += f'VT: {m["vt"]} | '
+        details_html = details_html.rstrip(' | ')
+        
+        desc_html = m.get('desc', '') or ''
+        
+        # Card positioning
+        if is_above:
+            card_style = f"bottom: {height}px;"
+            line_style = f"bottom: 0; height: {height - 8}px; background: {colors['border']};"
+        else:
+            card_style = f"top: {height}px;"
+            line_style = f"top: 0; height: {height - 8}px; background: {colors['border']};"
+        
+        html += f"""
+        <div class="milestone" style="left: {position_px}px;">
+            <div class="milestone-dot {shape_class}" style="background: {colors['bg']};"></div>
+            <div class="milestone-line" style="{line_style}"></div>
+            <div class="milestone-card" style="{card_style} background: {colors['bg']}; border: 2px solid {colors['border']}; color: {colors['text']};">
+                <div class="card-date">{m['date']}</div>
+                <div class="card-desc">{desc_html}</div>
+                {'<div class="card-details">' + details_html + '</div>' if details_html else ''}
+            </div>
+        </div>
+        """
+    
+    # Legend
+    html += """
+    </div>
+    <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#ea580c;"></div>Shop</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#7c3aed;"></div>Ván</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#16a34a;"></div>Sản xuất</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#2563eb;"></div>Vật tư</div>
+        <div class="legend-item"><div class="legend-dot star" style="background:#dc2626;"></div>Kế hoạch</div>
+        <div class="legend-item"><div class="legend-dot diamond" style="background:#475569;"></div>Ghi chú</div>
+        <div class="legend-item"><div class="legend-dot square" style="border: 2px solid #fff; background: transparent;"></div>Tổng hợp</div>
+    </div>
+    </body></html>
+    """
     return html
 
 def render_matrix_grids_html(matrix_df, details_map):
@@ -303,9 +539,9 @@ def render_matrix_grids_html(matrix_df, details_map):
                      var stClass = '';
                      var stIcon = '';
                      
-                     if (st === 'Hoàn thành' || st === 'OK' || st === 'Đủ') {{ stClass = 'status-done'; stIcon = '{Icons.STATUS_DONE} '; }}
-                     else if (st === 'Đang làm' || st === 'Thiếu') {{ stClass = 'status-missing'; stIcon = '{Icons.STATUS_MISSING} '; }}
-                     else if (st === 'Phát sinh' || st === 'Vượt KH' || st === 'Dư') {{ stClass = 'status-extra'; stIcon = '{Icons.STATUS_EXTRA} '; }}
+                     if (st === 'Hoàn thành' || st === 'Đủ') {{ stClass = 'status-done'; stIcon = '✔ '; }}
+                     else if (st === 'Thiếu' || st === 'Đang làm') {{ stClass = 'status-missing'; stIcon = '✖ '; }}
+                     else if (st === 'Phát sinh' || st === 'Vượt KH' || st === 'Dư') {{ stClass = 'status-extra'; stIcon = '➚ '; }}
                      
                      row += '<td style="text-align:center;">' + (d.date || d.creation_date || '') + '</td>';
                      row += '<td class="' + stClass + '" style="white-space: nowrap;">' + stIcon + st + '</td>'; 
@@ -356,7 +592,7 @@ def render_matrix_grids_html(matrix_df, details_map):
                 <div class="grid-column">
                     <div class="product-row" onclick="showDetail('{prod}', this, '{detail_id}')">
                         <span title="{prod}">{prod}</span>
-                        <span title="{row_data.get('product_name', '')}">{row_data.get('product_name', '')}</span>
+                        <span title="{row_data.get('TEN_SP', '')}">{row_data.get('TEN_SP', '')}</span>
                         {"".join([f"<span style='{v['style']}'>{v['icon']}</span>" if v['has_data'] else "<span class='cell-empty'></span>" for v in values])}
                     </div>
                 </div>
@@ -396,4 +632,106 @@ def render_matrix_grids_html(matrix_df, details_map):
         html += '</div>'
         
     html += "</body></html>"
+    return html
+
+def render_material_stats_html(df):
+    """Renders the Material Statistics table (Thống kê vật tư)."""
+    if df.empty:
+        return "<p style='color:white; text-align:center;'>Không có dữ liệu thống kê vật tư.</p>"
+        
+    css = f"""
+    <style>
+        .mat-table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            color: #e2e8f0;
+            font-family: Arial, sans-serif;
+        }}
+        .mat-table th {{
+            background: #1e3a5f;
+            border: 1px solid #334155;
+            padding: 8px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }}
+        .mat-table td {{
+            border: 1px solid #334155;
+            padding: 8px 12px;
+            vertical-align: middle;
+            background: #0f172a;
+        }}
+        .mat-table tr:hover td {{
+            background: #1e293b;
+        }}
+        .col-stt {{ width: 40px; text-align: center; }}
+        .col-qty {{ width: 70px; text-align: center; }}
+        .col-unit {{ width: 60px; text-align: center; }}
+        .col-rem {{ width: 70px; text-align: center; }}
+        .col-status {{ width: 120px; text-align: center; white-space: nowrap; }}
+        
+        /* Status styles for full cell fill */
+        .status-done {{ background-color: #1E88E5 !important; color: white; font-weight: bold; }}
+        .status-missing {{ background-color: #FF0000 !important; color: white; font-weight: bold; }}
+        .status-extra {{ background-color: #CC5500 !important; color: white; font-weight: bold; }}
+    </style>
+    """
+    
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>{css}</head>
+    <body>
+    <div style="max-height: 1500px; overflow-y: auto;">
+        <table class="mat-table">
+            <thead>
+                <tr>
+                    <th class="col-stt">STT</th>
+                    <th>Tên hàng</th>
+                    <th class="col-qty">Số lượng</th>
+                    <th class="col-rem">Tồn</th>
+                    <th class="col-unit">Đơn vị</th>
+                    <th>Mã SP - Tên SP</th>
+                    <th class="col-status">Trạng thái</th>
+                </tr>
+            </thead>
+            <tbody>
+    """
+    
+    for idx, row in df.iterrows():
+        related_products = row['Mã SP - Tên SP']
+        related_html = ""
+        if isinstance(related_products, list):
+            related_html = "".join([f"<div style='padding:2px 0;'>{p}</div>" for p in related_products])
+        else:
+            related_html = str(related_products)
+            
+        st = row.get('Trạng thái', '')
+        stClass = ''
+        stIcon = ''
+        if st == 'Hoàn thành' : stClass = 'status-done'; stIcon = '✔'
+        elif st == 'Thiếu' : stClass = 'status-missing'; stIcon = '✖'
+        elif st == 'Phát sinh' : stClass = 'status-extra'; stIcon = '➚'
+            
+        html += f"""
+        <tr>
+            <td class="col-stt">{idx + 1}</td>
+            <td style="font-weight: 500;">{row['Tên hàng']}</td>
+            <td class="col-qty">{row['Số lượng']}</td>
+            <td class="col-rem">{row['Tồn']}</td>
+            <td class="col-unit">{row['Đơn vị']}</td>
+            <td>{related_html}</td>
+            <td class="col-status {stClass}">{stIcon} {st}</td>
+        </tr>
+        """
+        
+    html += """
+            </tbody>
+        </table>
+    </div>
+    </body>
+    </html>
+    """
     return html

@@ -149,3 +149,6 @@ Skills.rar
 credentials.json
 token.pickle
 client_secret.json
+
+# Local Cache
+cache/

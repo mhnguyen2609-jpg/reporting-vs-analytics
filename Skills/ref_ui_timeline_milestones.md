@@ -1,46 +1,69 @@
 ---
 name: timeline-milestones-logic
-description: Quy định hiển thị trục thời gian (Timeline) lấy ngày từ ô C8 và quản lý các mốc tiến độ dự án.
+description: Tài liệu chi tiết về logic, cấu trúc dữ liệu và giao diện hiển thị của Trục Thời Gian (Timeline).
 ---
 
 # 📅 Quy chuẩn Trục Thời Gian (Timeline Milestones)
 
-Hệ thống cung cấp công cụ trực quan hóa tiến độ theo thời gian thực, giúp theo dõi các sự kiện quan trọng và kế hoạch sản xuất ngay phía trên bảng thống kê.
+Hệ thống Timeline được thiết kế để trực quan hóa tiến độ sản xuất theo thời gian thực, kết hợp dữ liệu tự động từ file bản vẽ và dữ liệu nhập thủ công từ người dùng.
 
-## 1. Thành phần giao diện (UI Components)
-Dựa trên thiết kế mockup, giao diện điều khiển Timeline bao gồm:
-- **Input Header:** - Ô nhập "Ngày" (Date Input).
-    - Ô nhập "Mô tả" nội dung sự kiện.
-    - Bảng chọn "Ghi chú/Kế hoạch".
-- **Action Buttons (Bộ nút chức năng):** - **Thêm**: Chèn một mốc mới vào trục.
-    - **Xóa mốc**: Loại bỏ mốc đang chọn.
-    - **Xóa tất cả**: Xóa toàn bộ lịch sử Timeline.
-    - **Làm mới**: Cập nhật lại số liệu thực tế từ Excel.
+## 1. Cơ chế hoạt động (Core Mechanism)
 
-## 2. Cấu trúc nội dung tại mỗi mốc (Milestone Data)
-Mỗi điểm nút (Dot) trên Timeline hiển thị các thông tin được truy xuất từ file `config.xlsx` và dữ liệu thực tế:
+Timeline hoạt động dựa trên việc hợp nhất (merge) hai nguồn dữ liệu:
+1.  **Tự động (Auto):** Trích xuất từ nội dung file dự án (ví dụ: ngày thống kê từ ô C8 trong file Excel).
+2.  **Thủ công (Manual):** Người dùng thêm/sửa/xóa trực tiếp trên giao diện ứng dụng.
 
-- **Ngày - Tháng (Mốc thời gian):** AI phải đọc giá trị chính xác tại ô **C8** của file Excel được chọn.
-    - Định dạng hiển thị: `DD/MM`.
-- **Thông số kỹ thuật (Info Box):** Hiển thị trạng thái hoàn thành tổng quát tại thời điểm đó:
-    - **Shop duyệt (CAD)**: xx/yy.
-    - **Ván**: xx/yy.
-    - **Sản xuất (CNC)**: xx/yy.
-    - **Vật tư**: xx/yy.
-- **Ghi chú & Kế hoạch:** Nội dung văn bản mô tả kế hoạch cho mốc thời gian đó.
+### Quy tắc Hợp nhất (Merging Logic)
+- **Khóa chính (Key):** Sử dụng Ngày (Date) chuẩn hóa định dạng `YYYY-MM-DD`.
+- **Ưu tiên:**
+    - Nếu cùng một ngày có cả dữ liệu Tự động và Thủ công, hệ thống sẽ hợp nhất thông tin.
+    - Mô tả (Description) sẽ được nối thêm nếu trùng lặp.
+- **Sắp xếp:** Tự động sắp xếp tăng dần theo thời gian.
 
+## 2. Quản lý Dữ liệu (Data Management)
 
+Hiện tại, dữ liệu Timeline được quản lý qua `Session State` của Streamlit.
 
-## 3. Logic xử lý dữ liệu ô C8
-- **Truy xuất:** AI sử dụng tọa độ `row 8, column C` (trong Pandas là `iloc[7, 2]`) để lấy ngày mốc.
-- **Fallback:** Nếu ô **C8** trống hoặc lỗi định dạng, AI lấy ngày hiện tại của hệ thống làm giá trị mặc định.
-- **Đồng bộ:** Mỗi khi dữ liệu tại ô C8 thay đổi, trục Timeline phải tự động dịch chuyển mốc tương ứng.
+### Cấu trúc Dữ liệu (Data Structure)
+Một đối tượng Milestone bao gồm:
+```json
+{
+  "date": "DD/MM/YYYY",       // Chuỗi hiển thị trên UI
+  "full_date": "YYYY-MM-DD", // Giá trị dùng để sắp xếp và merge
+  "desc": "Mô tả nội dung...", // Nội dung mốc
+  "type": "Kế hoạch"     // Loại mốc (Kế hoạch / Ghi chú)
+}
+```
 
-## 4. Quy tắc hiển thị & Màu sắc
-- **Màu Xanh Biển (#1E88E5):** Dành cho các mốc thời gian đã hoàn thành (TT = TC).
-- **Màu Vàng (#FF9800):** Dành cho các mốc đang thực hiện hoặc kế hoạch sắp tới.
-- **Đường kẻ ngang:** Nối liền các mốc, thể hiện dòng thời gian xuyên suốt của dự án.
+### Thao tác người dùng (User Actions)
+Giao diện cung cấp các công cụ trong khối `expander` "📅 Timeline tiến độ":
+- **Thêm/Sửa (Add/Edit):** Form nhập Ngày, Loại (Dropdown), và Mô tả (Text Area).
+- **Xóa (Delete):** Nút "❌" để xóa các mốc thủ công.
+- **Chỉnh sửa (Edit):** Nút "✏️" để load dữ liệu cũ lên form và cập nhật.
 
-## 5. Hướng dẫn kỹ thuật cho AI
-- **Data Persistence:** Lưu trữ danh sách các mốc vào một sheet `Timeline` trong file `config.xlsx` để không bị mất dữ liệu khi tắt App.
-- **UI:** Sử dụng `st.columns` để tạo hàng nút bấm và `st.container` kèm CSS để vẽ trục Timeline nằm ngang theo đúng tỉ lệ mockup.
+## 3. Giao diện hiển thị (Visualization)
+
+Timeline được render dưới dạng HTML tùy chỉnh (`src/ui/components.py`) với bố cục **Snake Layout** (Xương cá/Ziczac) để tối ưu không gian hiển thị.
+
+### Bố cục "Snake Layout"
+- **Trục giữa:** Một đường kẻ ngang cố định ở giữa (`top: 50%`).
+- **Phân bố Item:**
+    - **Item Chẵn (Even):** Nằm phía trên trục (`bottom: 50%`).
+    - **Item Lẻ (Odd):** Nằm phía dưới trục (`top: 50%`).
+- **Thẻ nội dung (Card):**
+    - Hiển thị Ngày tháng nổi bật.
+    - Hiển thị Mô tả chi tiết.
+    - Nếu có dữ liệu thống kê (Auto), hiển thị các chỉ số (Shop, Ván, SX, VT).
+
+### Mã màu & Trạng thái
+- **Logic màu sắc:**
+    - **Hoàn thành (Done):** Màu Xanh Biển (#1E88E5) - Khi Tình trạng thực tế (TT) == Tổng cộng (TC).
+    - **Chưa hoàn thành:** Màu Vàng/Cam - Khi còn hạng mục chưa xong.
+- **Biểu tượng:** Sử dụng các icon trực quan cho từng loại tài nguyên (Shop, Ván, CNC, Vật tư).
+
+## 4. Hướng dẫn tích hợp (Integration Guide)
+
+Khi phát triển thêm tính năng, cần tuân thủ:
+1.  **Dữ liệu đầu vào:** Luôn đảm bảo `full_date` có định dạng `YYYY-MM-DD` để logic sắp xếp hoạt động đúng.
+2.  **Lưu trữ:** Hiện tại dữ liệu thủ công chỉ tồn tại trong phiên làm việc (`st.session_state`). Nếu cần lưu lâu dài, cần bổ sung logic ghi vào file cấu hình (ví dụ: `config.json` hoặc file Excel ẩn).
+3.  **UI:** Sử dụng hàm `render_timeline_html` trong `src.ui.components` để tạo HTML string từ danh sách milestones đã xử lý.

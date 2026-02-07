@@ -6,6 +6,103 @@ from src.utils.excel_parser import read_excel_data
 # Matching is case-insensitive (checks if keyword is inside Item Name)
 PRIORITY_KEYWORDS = ['sắt', 'inox', 'da', 'nỉ', 'đệm', 'đá', 'vải', 'ưu tiên']
 
+def extract_milestones_from_files(file_list: List[Dict]) -> List[Dict]:
+    """
+    Extract milestones from C8 dates in Excel files.
+    Each unique C8 date becomes a milestone.
+    Only show items (shop/ván/cnc/vt) that CHANGED at each milestone.
+    """
+    from collections import defaultdict
+    
+    # Group files by creation_date (C8)
+    files_by_date = defaultdict(list)
+    
+    for f in file_list:
+        file_input = f.get('content') or f.get('path')
+        source_type = f.get('source_type', '')
+        df = read_excel_data(file_input, source_type)
+        if df is not None and '_creation_date' in df.columns:
+            creation_date = df['_creation_date'].iloc[0] if len(df) > 0 else ''
+            if creation_date and creation_date != 'nan':
+                files_by_date[creation_date].append({**f, '_df': df})
+    
+    # Calculate cumulative stats at each date
+    milestones = []
+    prev_stats = {'shop': '0/0', 'van': '0/0', 'sx': '0/0', 'vt': '0/0'}
+    cumulative = {'shop_tt': 0, 'shop_tc': 0, 'van_tt': 0, 'van_tc': 0, 
+                  'cnc_tt': 0, 'cnc_tc': 0, 'vt_tt': 0, 'vt_tc': 0}
+    
+    # Helper to parse Key (Date String) for sorting
+    def parse_sort_key(d_str):
+        try:
+            if '/' in d_str:
+                parts = d_str.split('/')
+                if len(parts) == 3: # dd/mm/yyyy
+                    return f"{parts[2]}{parts[1]}{parts[0]}"
+                if len(parts) == 2: # dd/mm
+                    return f"9999{parts[1]}{parts[0]}"
+            # If YYYY-MM-DD
+            if '-' in d_str:
+                return d_str
+        except:
+            pass
+        return d_str
+
+    for date_str, files in sorted(files_by_date.items(), key=lambda x: parse_sort_key(x[0])):
+        # Add files at this date to cumulative totals
+        for f in files:
+            df = f.get('_df')
+            st = f.get('source_type', '')
+            if df is None:
+                continue
+            qty = df['quantity'].sum() if 'quantity' in df.columns else 0
+            
+            if 'SHOP_TC' in st:
+                cumulative['shop_tc'] += qty
+            elif 'SHOP_TT' in st:
+                cumulative['shop_tt'] += qty
+            elif 'NESTING' in st:
+                cumulative['cnc_tc'] += qty
+            elif 'CAT_TT' in st:
+                cumulative['cnc_tt'] += qty
+            elif 'VAN' in st:
+                if 'NHAP' in st:
+                    cumulative['van_tt'] += qty
+                else:
+                    cumulative['van_tc'] += qty
+            elif 'VT_NHAP' in st:
+                cumulative['vt_tc'] += qty
+            elif 'VT_XUAT' in st:
+                cumulative['vt_tt'] += qty
+        
+        # Current stats at this date
+        current_stats = {
+            'shop': f"{int(cumulative['shop_tt'])}/{int(cumulative['shop_tc'])}",
+            'van': f"{int(cumulative['van_tt'])}/{int(cumulative['van_tc'])}",
+            'sx': f"{int(cumulative['cnc_tt'])}/{int(cumulative['cnc_tc'])}",
+            'vt': f"{int(cumulative['vt_tt'])}/{int(cumulative['vt_tc'])}"
+        }
+        
+        # Only include items that CHANGED from previous milestone
+        changed_items = {}
+        for key in ['shop', 'van', 'sx', 'vt']:
+            if current_stats[key] != prev_stats[key]:
+                changed_items[key] = current_stats[key]
+        
+        # Only create milestone if something changed
+        if changed_items:
+            display_date = date_str # Use full date format
+            milestones.append({
+                'date': display_date,
+                'full_date': date_str,
+                'desc': "",  # Will be generated based on changed items
+                **changed_items  # Only include changed items
+            })
+        
+        prev_stats = current_stats.copy()
+    
+    return milestones
+
 def calculate_aggregates(file_list: List[Dict]) -> Dict[str, Dict]:
     """
     Calculates TC (Standard) vs TT (Actual) for each category.
@@ -411,8 +508,14 @@ def _build_ten_sp_map(files_by_type: Dict[str, List[Any]]) -> Dict[str, str]:
         df = read_excel_data(file_input, 'SHOP_TT')
         if df is not None and 'key' in df.columns:
             df['key'] = df['key'].astype(str).str.strip()
-            header_map = {c.lower(): c for c in df.columns}
+            # Clean headers: lower and strip
+            header_map = {str(c).lower().strip(): c for c in df.columns}
+            
             col_ten_sp = header_map.get('tên sp') or header_map.get('ten sp') or header_map.get('ten_sp')
+            if not col_ten_sp:
+                col_ten_sp = header_map.get('tên sản phẩm') or header_map.get('ten san pham') or header_map.get('ten_san_pham')
+            if not col_ten_sp:
+                col_ten_sp = header_map.get('tên hàng') or header_map.get('ten hang') or header_map.get('ten_hang')
             
             if col_ten_sp:
                 for idx, row in df.iterrows():
@@ -427,8 +530,14 @@ def _build_ten_sp_map(files_by_type: Dict[str, List[Any]]) -> Dict[str, str]:
         df = read_excel_data(file_input, 'SHOP_TC')
         if df is not None and 'key' in df.columns:
             df['key'] = df['key'].astype(str).str.strip()
-            header_map = {c.lower(): c for c in df.columns}
+            # Clean headers: lower and strip
+            header_map = {str(c).lower().strip(): c for c in df.columns}
+            
             col_ten_sp = header_map.get('tên sp') or header_map.get('ten sp') or header_map.get('ten_sp')
+            if not col_ten_sp:
+                col_ten_sp = header_map.get('tên sản phẩm') or header_map.get('ten san pham') or header_map.get('ten_san_pham')
+            if not col_ten_sp:
+                col_ten_sp = header_map.get('tên hàng') or header_map.get('ten hang') or header_map.get('ten_hang')
             
             if col_ten_sp:
                 for idx, row in df.iterrows():
@@ -650,12 +759,7 @@ def get_all_product_details(file_list: List[Dict]) -> Dict[str, List[Dict]]:
         file_input = f.get('content') or f.get('path')
         df = read_excel_data(file_input, 'VT_NHAP')
         if df is not None and 'key' in df.columns:
-            # DEBUG: Print columns and sample data
-            print(f"[DEBUG VT_NHAP] Columns: {df.columns.tolist()}")
-            if 'ten_hang' in df.columns:
-                print(f"[DEBUG VT_NHAP] ten_hang sample: {df['ten_hang'].head(3).tolist()}")
-            else:
-                print(f"[DEBUG VT_NHAP] WARNING: 'ten_hang' not in columns!")
+
             
             df['key'] = df['key'].astype(str).str.strip()
             for idx, row in df.iterrows():
@@ -688,12 +792,7 @@ def get_all_product_details(file_list: List[Dict]) -> Dict[str, List[Dict]]:
         file_input = f.get('content') or f.get('path')
         df = read_excel_data(file_input, 'VT_XUAT')
         if df is not None and 'key' in df.columns:
-            # DEBUG: Print columns and sample data
-            print(f"[DEBUG VT_XUAT] Columns: {df.columns.tolist()}")
-            if 'ten_hang' in df.columns:
-                print(f"[DEBUG VT_XUAT] ten_hang sample: {df['ten_hang'].head(3).tolist()}")
-            else:
-                print(f"[DEBUG VT_XUAT] WARNING: 'ten_hang' not in columns!")
+
             
             df['key'] = df['key'].astype(str).str.strip()
             for idx, row in df.iterrows():
@@ -781,7 +880,7 @@ def get_all_product_details(file_list: List[Dict]) -> Dict[str, List[Dict]]:
             if item_name not in nhap_items:
                 qty_xuat = xuat_data.get('quantity', 0)
                 qty_nhap = 0
-                remaining = qty_xuat - qty_nhap
+                remaining = qty_nhap - qty_xuat
                 
                 product_name = ten_sp_map.get(key, '')
 
@@ -800,11 +899,6 @@ def get_all_product_details(file_list: List[Dict]) -> Dict[str, List[Dict]]:
                     'note': xuat_data.get('note', ''),
                     'is_priority': xuat_data.get('is_priority', False)
                 })
-    # DEBUG: Print sample of final VT details
-    for key, items in list(all_details.items())[:2]:
-        vt_items = [i for i in items if i.get('category') == 'VẬT TƯ']
-        if vt_items:
-            print(f"[DEBUG FINAL] Key={key}, First VT item_name: '{vt_items[0].get('item_name', 'MISSING')}'")
-            print(f"[DEBUG FINAL] Full item keys: {list(vt_items[0].keys())}")
+
     
     return all_details

@@ -29,11 +29,36 @@ class Icons:
     STATUS_MISSING = "✖"   # Cross
     STATUS_EXTRA = "➚"     # Arrow
 
+class Fonts:
+    """Standardized Fonts"""
     PRIMARY = "Arial, sans-serif"
     SIZE_SMALL = "10px"
     SIZE_NORMAL = "11px"
     SIZE_HEADER = "12px"
     WEIGHT_BOLD = "600"
+
+class TimelineDesign:
+    """Timeline Specific Design Constants"""
+    # Dimensions
+    PIXELS_PER_DAY = 15
+    PADDING_LEFT = 150
+    PADDING_RIGHT = 320
+    MIN_CARD_WIDTH = 300
+    CARD_WIDTH = 220
+    
+    # Tier Heights (distance from center line)
+    TIER_HEIGHTS = [60, 160, 260, 360]
+    
+    # Type Colors
+    TYPE_COLORS = {
+        'shop': {'bg': '#ea580c', 'text': '#fff', 'border': '#c2410c'},       # Orange
+        'van': {'bg': '#7c3aed', 'text': '#fff', 'border': '#6d28d9'},        # Purple
+        'sx': {'bg': '#16a34a', 'text': '#fff', 'border': '#15803d'},         # Green
+        'vt': {'bg': '#2563eb', 'text': '#fff', 'border': '#1d4ed8'},         # Blue
+        'ke_hoach': {'bg': '#dc2626', 'text': '#fff', 'border': '#b91c1c'},   # Red
+        'ghi_chu': {'bg': '#475569', 'text': '#fff', 'border': '#334155'},    # Slate
+        'default': {'bg': '#f97316', 'text': '#fff', 'border': '#ea580c'},    # Orange default
+    }
 
 class Labels:
     """Centralized UI Text Strings"""

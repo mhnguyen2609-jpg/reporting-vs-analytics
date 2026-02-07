@@ -75,10 +75,26 @@ def read_cell_c8(file_input: Union[str, io.BytesIO]) -> str:
         if df_raw.shape[0] > 7 and df_raw.shape[1] > 2:
             value = df_raw.iloc[7, 2]  # Row 8, Col C
             if pd.notna(value):
-                # Try to format as date if it's a datetime
+                # Case 1: Value is already a datetime object
                 if hasattr(value, 'strftime'):
                     return value.strftime('%d/%m/%Y')
-                return str(value).strip()
+                
+                # Case 2: Value is a string (e.g., "01.01.2024", "01-01-2024")
+                date_str = str(value).strip()
+                # Normalize separators: replace '.' and '-' with '/'
+                date_str = date_str.replace('.', '/').replace('-', '/')
+                
+                # Check if it matches dd/mm/yyyy regex or try parsing?
+                # Simple validation: looks like date?
+                # For now, assume if it has 2 slashes, it's likely a date.
+                # A more robust way: use datetime.strptime to validate and format
+                try:
+                    from datetime import datetime
+                    dt = datetime.strptime(date_str, '%d/%m/%Y')
+                    return dt.strftime('%d/%m/%Y')
+                except ValueError:
+                    # If parsing fails, return original string (best effort)
+                    return date_str
     except:
         pass
     return ''

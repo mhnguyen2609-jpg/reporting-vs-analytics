@@ -9,6 +9,35 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from google.oauth2.service_account import Credentials
 
+import time
+import random
+from functools import wraps
+
+# ... imports ...
+
+def retry_api(max_retries=3, delay=1, backoff=2):
+    """Decorator to retry API calls on failure."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            mtries, mdelay = max_retries, delay
+            while mtries > 1:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    # Check for SSL or Timeout specific errors if possible, or just retry all for now
+                    msg = str(e).lower()
+                    if 'ssl' in msg or 'timeout' in msg or 'connection' in msg or 'reset' in msg:
+                        print(f"[RETRY] {func.__name__} failed: {e}. Retrying in {mdelay}s...")
+                        time.sleep(mdelay)
+                        mtries -= 1
+                        mdelay *= backoff
+                    else:
+                        raise e # Raise other errors immediately
+            return func(*args, **kwargs) # Last attempt
+        return wrapper
+    return decorator
+
 # Scopes required (need write access for cache persistence)
 SCOPES = ['https://www.googleapis.com/auth/drive']
 
@@ -91,6 +120,7 @@ class GoogleDriveClient:
         else:
             print("[ERROR] Warning: No valid credentials found. Drive features will not work.")
 
+    @retry_api()
     def list_folders(self, parent_id: str) -> List[Dict]:
         """
         Lists subfolders within a given parent folder.
@@ -121,6 +151,7 @@ class GoogleDriveClient:
             print(f"Drive List Folders Error: {e}")
             return []
 
+    @retry_api()
     def list_excel_files(self, parent_id: str) -> List[Dict]:
         """
         Recursively finds all Excel files in the folder structure is too slow.
@@ -160,6 +191,7 @@ class GoogleDriveClient:
             
 
             
+    @retry_api()
     def get_file_metadata(self, file_id: str) -> Dict:
         """Get metadata (name, mimeType) for a file/folder."""
         if not self.service: return {}
@@ -170,6 +202,7 @@ class GoogleDriveClient:
             print(f"Get Metadata Error: {e}")
             return {}
 
+    @retry_api()
     def get_folder_modified_times(self, folder_ids: list) -> Dict[str, str]:
         """
         Get modifiedTime for multiple folders in a single batch.
@@ -202,6 +235,7 @@ class GoogleDriveClient:
         
         return result
 
+    @retry_api()
     def read_excel(self, file_id: str) -> Optional[bytes]:
         """
         Downloads file content as bytes.

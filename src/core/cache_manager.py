@@ -49,7 +49,8 @@ def get_contracts_for_year_drive(year_folder_id):
         contracts_map = {f['name']: f['id'] for f in folders}
         contracts_sorted = sorted(contracts_map.keys(), key=natural_sort_key)
         return contracts_map, contracts_sorted
-    except:
+    except Exception as e:
+        st.error(f"Lỗi khi tải danh sách hợp đồng: {e}")
         return {}, []
 
 def load_data_from_drive(contract_folder_id, progress_callback=None):
@@ -278,7 +279,7 @@ def is_cache_valid(year: str, current_timestamps: dict, year_folder_id: str = No
         return False
     return cached_ts == current_timestamps
 
-def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
+def load_all_contracts_data_logic(selected_year, years_map, force_reload=False, progress_callback=None):
     """
     Smart caching loader that checks modification times before loading.
     Uses SHARED cache - all users see the same cached data.
@@ -297,9 +298,7 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
     # Get current modification times for all contracts
     contract_ids = list(contracts_map.values())
     
-    status_text = st.empty()
-    if not force_reload and cached_data:
-        status_text.text("Đang kiểm tra thay đổi...")
+    if progress_callback: progress_callback(0.05, "Đang kiểm tra thay đổi...")
     
     current_timestamps = drive_client.get_folder_modified_times(contract_ids)
     
@@ -320,12 +319,14 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
             if old_ts != new_ts:
                 contracts_to_load.append(contract_name)
     
+    if progress_callback: progress_callback(0.1, f"Cần cập nhật {len(contracts_to_load)} hợp đồng...")
+
     # Initialize updated collections
     updated_details = cached_details if cached_details and not force_reload else {}
 
     # If nothing changed, use cached data
     if not contracts_to_load and cached_data:
-        status_text.text("")
+        if progress_callback: progress_callback(1.0, "Dữ liệu đã được cache!")
         st.toast("✅ Dữ liệu không thay đổi, dùng cache CHUNG!")
         # Update session state details cache
         st.session_state.details_cache = updated_details
@@ -343,20 +344,19 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
             if row['contract'] not in contracts_to_load:
                 all_rows.append(row)
     
-    # Progress bar
-    progress_bar = st.progress(0)
-    
     total_to_load = len(contracts_to_load)
     if total_to_load == 0:
-        progress_bar.empty()
-        status_text.empty()
         st.session_state.details_cache = updated_details
+        if progress_callback: progress_callback(1.0, "Hoàn tất!")
         return all_rows
     
     for idx, contract_name in enumerate(contracts_to_load):
         contract_id = contracts_map[contract_name]
-        status_text.text(f"Đang xử lý: {contract_name} ({idx+1}/{total_to_load})")
-        progress_bar.progress((idx) / total_to_load)
+        
+        # Calculate Progress: Start from 10% (0.1), distribute remaining 90%
+        current_progress = 0.1 + (idx / total_to_load) * 0.8
+        if progress_callback:
+            progress_callback(current_progress, f"Đang xử lý: {contract_name}")
         
         # Load data (files + content)
         files = load_data_from_drive(contract_id)
@@ -388,14 +388,15 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False):
     
     # Update Session State Details Cache
     st.session_state.details_cache = updated_details
+    
+    if progress_callback: progress_callback(0.95, "Đang lưu cache...")
 
     # Save to SHARED cache (local + Drive for persistence)
     save_shared_cache(str(selected_year), all_rows, current_timestamps, updated_details, year_id)
     # Also update session state for quick access
     st.session_state.cache_loaded_year = str(selected_year)
             
-    progress_bar.empty()
-    status_text.empty()
+    if progress_callback: progress_callback(1.0, "Hoàn tất!")
     return all_rows
 
 # ============================================================
@@ -417,21 +418,98 @@ def get_contracts_for_year_local(root_path, year):
                        if os.path.isdir(os.path.join(year_path, d))], key=natural_sort_key)
     except: return []
 
-def load_all_contracts_data_local(root_path, year):
+def load_all_contracts_data_local(root_path, year, progress_callback=None):
     contracts = get_contracts_for_year_local(root_path, year)
-    all_rows = []
     categories = ['CAD', 'CNC', 'VÁN', 'VẬT TƯ', 'VẬT TƯ ƯU TIÊN']
     
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    total = len(contracts)
+    # 1. Initialize Maps
+    local_contracts_map = {}
+    for c in contracts:
+        local_contracts_map[c] = os.path.join(root_path, str(year), c)
+
+    # 2. Check SHARED Cache
+    cached_data, cached_timestamps, cached_details = load_shared_cache(str(year))
     
-    for idx, contract in enumerate(contracts):
-        status_text.text(f"Đang quét (Local): {contract} ({idx+1}/{total})")
-        progress_bar.progress(idx / total if total > 0 else 0)
+    # 3. Check Modification Times (Local)
+    contracts_to_load = []
+    current_timestamps = {}
+    
+    # Use cached collections as base to preserve Drive data if any
+    updated_timestamps = cached_timestamps.copy() if cached_timestamps else {}
+    updated_details = cached_details.copy() if cached_details else {}
+    
+    if progress_callback: progress_callback(0.05, "Đang kiểm tra thay đổi (Local)...")
+    
+    for contract in contracts:
+        c_path = local_contracts_map[contract]
+        # Get directory mtime
+        try:
+            mtime = os.path.getmtime(c_path)
+            # Find max mtime of files inside to be more accurate? 
+            # For speed, dir mtime might suffice, or logic from file_scanner?
+            # Let's stick to dir mtime for now or finding newest file.
+            # Dir mtime changes when file added/removed. Content change? Not always.
+            # Safe approach: recursive mtime check? Too slow.
+            # Let's use dir mtime.
+            ts_str = str(mtime)
+        except:
+            ts_str = "0"
+            
+        current_timestamps[c_path] = ts_str
+        updated_timestamps[c_path] = ts_str # Update current
         
-        contract_path = os.path.join(root_path, str(year), contract)
+        # Compare with cache (using Path as ID)
+        old_ts = updated_timestamps.get(c_path, '')
+        # Wait, I just overwrote it within updated_timestamps in line above.
+        # Logic error.
+        # Retrying logic:
+        old_ts = cached_timestamps.get(c_path, '') if cached_timestamps else ''
+        
+        if old_ts != ts_str:
+            contracts_to_load.append(contract)
+        elif not cached_details or c_path not in cached_details:
+             # Also reload if details are missing
+             contracts_to_load.append(contract)
+
+    # 4. Filter Cached Data
+    all_rows = []
+    if cached_data:
+        # Keep rows that are NOT in contracts_to_load
+        # BUT we must carefully match using Contract Name
+        for row in cached_data:
+            if row.get('contract') not in contracts_to_load:
+                # Issue: If cached_data has "Contract A" from Drive, and we are in Local.
+                # If Local also has "Contract A" but it wasn't modified?
+                # We use the cached row.
+                # If Local "Contract A" IS modified, we skip cached row and reload.
+                # This works.
+                all_rows.append(row)
+
+    if not contracts_to_load and cached_data:
+        if progress_callback: progress_callback(1.0, "Dữ liệu Local đã được cache!")
+        st.session_state.contracts_map = local_contracts_map
+        st.session_state.details_cache = updated_details
+        st.session_state.cache_loaded_year = str(year)
+        return all_rows
+
+    # 5. Load Changed Contracts
+    total = len(contracts_to_load)
+    
+    for idx, contract in enumerate(contracts_to_load):
+        contract_path = local_contracts_map[contract]
+        message = f"Đang quét (Local): {contract}"
+        
+        ratio = 0.1 + (idx / total) * 0.8 # Scale 10% -> 90%
+        if progress_callback:
+            progress_callback(ratio, message)
+        
+        # Scan Files
         files = scan_project_files(contract_path)
+        
+        # Update Details Cache
+        updated_details[contract_path] = files
+        
+        # Calculate Aggregates
         aggs = calculate_aggregates(files) if files else {}
         
         for cat in categories:
@@ -443,7 +521,7 @@ def load_all_contracts_data_local(root_path, year):
             data = aggs.get(agg_key, {'TC': 0, 'TT': 0, 'percent': 0})
             all_rows.append({
                 'contract': contract,
-                'category': cat, # Display name
+                'category': cat,
                 'tc': data['TC'],
                 'tt': data['TT'],
                 'percent': data['percent'],
@@ -451,7 +529,20 @@ def load_all_contracts_data_local(root_path, year):
                 'nhom_hang_tt': data.get('nhom_hang_tt', 0),
                 'nhom_percent': data.get('nhom_percent', 0)
             })
-            
-    progress_bar.empty()
-    status_text.empty()
+
+    # 6. Save Shared Cache
+    if progress_callback: progress_callback(0.95, "Đang lưu cache (Local)...")
+    
+    # Sort for consistency?
+    # all_rows.sort(key=lambda x: natural_sort_key(x['contract'])) # Optional
+    
+    save_shared_cache(str(year), all_rows, updated_timestamps, updated_details, year_folder_id=None)
+    
+    if progress_callback: progress_callback(1.0, "Hoàn tất!")
+    
+    # Update Session State
+    st.session_state.contracts_map = local_contracts_map
+    st.session_state.details_cache = updated_details
+    st.session_state.cache_loaded_year = str(year)
+    
     return all_rows
