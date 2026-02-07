@@ -432,16 +432,14 @@ with st.sidebar:
         if selected_contract != Labels.OPTION_DEFAULT:
             st.session_state.selected_contract = selected_contract
         else:
-            # If "Select..." is chosen, default to the FIRST contract if available (Auto-select)
-            # This handles the "Not auto loading" complaint by ensuring a contract is always active
-            if c_list:
-                st.session_state.selected_contract = c_list[0]
-                # We need to rerun to update the selectbox index visually if we want sync?
-                # Or just let it render.
-                # If we change session_state here, next rerun will pick it up.
-                st.rerun()
+            # User wants to see ALL contracts if nothing selected
+            st.session_state.selected_contract = None
+            # Optional: st.rerun() not needed here as rendering logic handles None
+            if st.session_state.selected_contract is not None:
+                st.rerun() # Only rerun if we actually changed state (which we did if it was something else)
             else:
-                st.session_state.selected_contract = None
+                 # Ensure we don't hold stale state
+                 pass
 
 # ============================================================
 # MAIN AREA
