@@ -23,6 +23,8 @@ project/
 │   │   ├── calculator.py       # Data Analysis, Aggregation, & Matrix Building / Phân tích & Tổng hợp dữ liệu
 │   │   ├── config_loader.py    # Configuration Management / Quản lý cấu hình
 │   │   └── constants.py        # Global Constants & Regex Patterns / Hằng số & Biểu thức chính quy
+│   ├── scripts/                # [Automation] Standalone Scripts / Script Tự động hóa
+│   │   └── precompute.py       # [New] Local Data Preparation Strategy / Chiến lược chuẩn bị dữ liệu Local
 │   ├── ui/                     # [Presentation Layer] UI Components & Design System / Giao diện & Thiết kế
 │   │   ├── components.py       # HTML rendering functions (Master Table, Matrix Grid) / Hàm render HTML
 │   │   └── design.py           # [New] Centralized Design System (Colors, Icons, Fonts) / Hệ thống thiết kế tập trung

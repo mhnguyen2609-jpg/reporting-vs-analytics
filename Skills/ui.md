@@ -115,4 +115,23 @@ Visualizes production milestones.
     -   **Alternating Items:**
         -   **Even Items (Chẵn):** `bottom: 50%` (Above line / Trên dòng kẻ).
         -   **Odd Items (Lẻ):** `top: 50%` (Below line / Dưới dòng kẻ).
--   **Data points:** Automatically aligned with flexbox. *(Tự động căn chỉnh bằng Flexbox).*
+
+---
+
+## 3. Transparent UI Design / Thiết kế Giao diện Trong suốt
+
+To enhance the modern look and feel, background colors for major data components have been removed.
+*Để tăng vẻ hiện đại, các màu nền của các thành phần dữ liệu chính đã được loại bỏ.*
+
+### Implementation Details / Chi tiết Triển khai
+-   **CSS Strategy:** Use `background: transparent` and `rgba(255,255,255,0.1)` borders.
+    *(Chiến lược CSS: Sử dụng nền trong suốt và viền trắng mờ 10%).*
+-   **Affected Components:**
+    -   **Master Table:** Header and Body backgrounds removed.
+    -   **Timeline:** Container and Card backgrounds set to transparent.
+    -   **Matrix Grid:** Product rows and Detail rows are transparent.
+    -   **Material Stats:** Table background removed.
+-   **Global Override:** Streamlit's default dataframe style is overridden via injected CSS:
+    ```css
+    [data-testid="stDataFrame"] { background-color: transparent !important; }
+    ```

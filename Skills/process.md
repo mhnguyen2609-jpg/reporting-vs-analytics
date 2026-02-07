@@ -101,4 +101,30 @@ Aggregates material usage across all products.
 3.  **Status Determination:**
     -   `Tồn > 0`: **Thiếu (Missing)**. *(Still have plan budget)*.
     -   `Tồn == 0`: **Hoàn thành (Done)**. *(Plan equals Actual)*.
-    -   `Tồn < 0`: **Phát sinh (Extra)**. *(Used more than Plan or Unplanned)*.
+
+---
+
+## 4. Pre-computation Workflow (Performance Optimization) / Quy trình Tính toán trước
+To resolve memory constraints and startup crashes (Segfaults) on Streamlit Cloud, the system supports a **Static Loading Mode**.
+*Để giải quyết vấn đề bộ nhớ và lỗi crash khi khởi động trên Cloud, hệ thống hỗ trợ **Chế độ Tải Tĩnh**.*
+
+### Workflow Steps / Các bước thực hiện
+1.  **Local Processing (`src/scripts/precompute.py`)**:
+    -   Run locally to scan thousands of Excel files. *(Chạy trên máy local để quét hàng ngàn file)*
+    -   Uses `load_all_contracts_data_local` logic (Same as Runtime).
+    -   Generates 2 JSON artifacts in `data/`:
+        -   `master_data_{YEAR}.json`: Aggregated statistics. *(Thống kê tổng hợp)*
+        -   `details_data_{YEAR}.json`: Full file list and content for Detail View. *(Danh sách file và nội dung cho View Chi tiết)*
+
+2.  **Deployment (Git Push)**:
+    -   Commit these JSON files to the repository. *(Đẩy file JSON lên repo)*
+
+3.  **Cloud Startup (`app.py`)**:
+    -   Detects `data/master_data_{YEAR}.json`.
+    -   **Bypasses** Google Drive API and Excel Parsing completely. *(Bỏ qua hoàn toàn quét Drive và Excel)*
+    -   Loads data instantly into RAM. *(Tải ngay lập tức vào RAM)*
+
+### Benefits / Lợi ích
+-   **Zero Crash Risk:** No heavy processing at startup. *(Không lo crash)*
+-   **Instant Load:** < 1 second startup time. *(Khởi động < 1s)*
+-   **Offline Capable:** Can run without Drive API if JSONs are present. *(Chạy được khi không có mạng)*
