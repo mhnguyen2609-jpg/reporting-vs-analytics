@@ -14,7 +14,7 @@ from src.utils.helpers import natural_sort_key
 def get_drive_client_v3():
     return GoogleDriveClient()
 
-drive_client = get_drive_client_v3()
+# drive_client = get_drive_client_v3() # Removed to avoid module-level execution
 
 # ============================================================
 # HELPER FUNCTIONS (DRIVE)
@@ -23,6 +23,7 @@ drive_client = get_drive_client_v3()
 def get_available_years_drive(root_id):
     if not root_id: return {}, []
     try:
+        drive_client = get_drive_client_v3()
         # 1. Try to list subfolders (Standard Root Structure)
         folders = drive_client.list_folders(root_id)
         years_map = {f['name']: f['id'] for f in folders if f['name'].isdigit()}
@@ -45,6 +46,7 @@ def get_available_years_drive(root_id):
 def get_contracts_for_year_drive(year_folder_id):
     if not year_folder_id: return {}, []
     try:
+        drive_client = get_drive_client_v3()
         folders = drive_client.list_folders(year_folder_id)
         contracts_map = {f['name']: f['id'] for f in folders}
         contracts_sorted = sorted(contracts_map.keys(), key=natural_sort_key)
@@ -75,8 +77,10 @@ def load_data_from_drive(contract_folder_id, progress_callback=None):
                         pass # Keep as is if decode fails
                 decoded_files.append(new_f)
             print(f"[CACHE HIT] Loaded details for {contract_folder_id}")
+            print(f"[CACHE HIT] Loaded details for {contract_folder_id}")
             return decoded_files
 
+    drive_client = get_drive_client_v3()
     files_meta = scan_drive_files(drive_client, contract_folder_id)
     results = []
     total = len(files_meta)
@@ -131,6 +135,7 @@ def save_shared_cache(year: str, data: list, timestamps: dict, details: dict, ye
         raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
     try:
+        drive_client = get_drive_client_v3()
         # 1. Save locally first (for quick access)
         with open(get_cache_path(year), 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, default=json_default)
@@ -223,8 +228,10 @@ def load_shared_cache(year: str, year_folder_id: str = None) -> tuple:
         print(f"Local cache load error: {e}")
     
     # 2. Try Google Sheets cache (if local not found)
-    if year_folder_id and drive_client and drive_client.service:
+    if year_folder_id:
         try:
+            drive_client = get_drive_client_v3()
+            if not drive_client.service: return None, None, None
             sheet_title = f"CACHE_DB_{year}"
             spreadsheet_id = drive_client.find_file_in_folder(year_folder_id, sheet_title)
             
@@ -315,6 +322,7 @@ def load_all_contracts_data_logic(selected_year, years_map, force_reload=False, 
     
     if progress_callback: progress_callback(0.05, "Đang kiểm tra thay đổi...")
     
+    drive_client = get_drive_client_v3()
     current_timestamps = drive_client.get_folder_modified_times(contract_ids)
     
     # Determine which contracts need to be reloaded
