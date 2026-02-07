@@ -18,7 +18,7 @@ from src.ui.design import Labels
 from src.ui.components import render_master_table_html, render_timeline_html, render_matrix_grids_html, render_material_stats_html
 from src.core.material_aggregator import aggregate_materials_by_name
 from src.core.cache_manager import (
-    drive_client, 
+    get_drive_client_v3, 
     get_available_years_drive, 
     get_contracts_for_year_drive, 
     load_data_from_drive, 
@@ -362,7 +362,16 @@ with st.sidebar:
         if selected_contract != Labels.OPTION_DEFAULT:
             st.session_state.selected_contract = selected_contract
         else:
-            st.session_state.selected_contract = None
+            # If "Select..." is chosen, default to the FIRST contract if available (Auto-select)
+            # This handles the "Not auto loading" complaint by ensuring a contract is always active
+            if c_list:
+                st.session_state.selected_contract = c_list[0]
+                # We need to rerun to update the selectbox index visually if we want sync?
+                # Or just let it render.
+                # If we change session_state here, next rerun will pick it up.
+                st.rerun()
+            else:
+                st.session_state.selected_contract = None
 
 # ============================================================
 # MAIN AREA
