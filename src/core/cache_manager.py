@@ -148,8 +148,11 @@ def save_shared_cache(year: str, data: list, timestamps: dict, details: dict, ye
                 spreadsheet_id = drive_client.create_sheet(year_folder_id, sheet_title)
             
             if spreadsheet_id:
+                # Resolve Sheet Name Dynamically
+                sheet_name = drive_client.get_first_sheet_title(spreadsheet_id) or "Sheet1"
+                safe_sheet_name = f"'{sheet_name}'" if " " in sheet_name else sheet_name
+
                 # Prepare Data for Sheet (Flatten to 2D array)
-                # Sheet 1: Data
                 data_values = []
                 if data:
                     header = list(data[0].keys())
@@ -157,14 +160,18 @@ def save_shared_cache(year: str, data: list, timestamps: dict, details: dict, ye
                     for row in data:
                         data_values.append([str(row.get(k, '')) for k in header])
                 
-                drive_client.clear_sheet_range(spreadsheet_id, "Sheet1!A1:Z")
-                drive_client.write_sheet_data(spreadsheet_id, "Sheet1!A1", data_values)
-                
-                # Save Timestamps in AA1
-                ts_json = json.dumps(timestamps, default=json_default)
-                drive_client.write_sheet_data(spreadsheet_id, "Sheet1!AA1", [['METADATA_TIMESTAMPS', ts_json]])
-                
-                print(f"[OK] Cache saved to Sheets: {sheet_title}")
+                try:
+                    drive_client.clear_sheet_range(spreadsheet_id, f"{safe_sheet_name}!A1:Z")
+                    drive_client.write_sheet_data(spreadsheet_id, f"{safe_sheet_name}!A1", data_values)
+                    
+                    # Save Timestamps in AA1
+                    ts_json = json.dumps(timestamps, default=json_default)
+                    drive_client.write_sheet_data(spreadsheet_id, f"{safe_sheet_name}!AA1", [['METADATA_TIMESTAMPS', ts_json]])
+                    
+                    print(f"[OK] Cache saved to Sheets: {sheet_title} ({sheet_name})")
+                except Exception as e:
+                    print(f"Save Sheet Data Error: {e}")
+                    st.error(f"Lỗi khi lưu vào Sheet: {e}")
                 
             else:
                  st.error(f"Failed to create/find spreadsheet '{sheet_title}' (ID is None)")
@@ -222,51 +229,59 @@ def load_shared_cache(year: str, year_folder_id: str = None) -> tuple:
             spreadsheet_id = drive_client.find_file_in_folder(year_folder_id, sheet_title)
             
             if spreadsheet_id:
-                # Read Data from Sheet1
-                raw_values = drive_client.read_sheet_data(spreadsheet_id, "Sheet1!A:Z")
-                # ... (Parsing logic same as before)
-                if raw_values and len(raw_values) > 1:
-                    headers = raw_values[0]
-                    data = []
-                    for row in raw_values[1:]:
-                        if not row: continue
-                        item = {}
-                        for i, h in enumerate(headers):
-                            if i < len(row):
-                                item[h] = row[i]
-                            else:
-                                item[h] = ""
-                        data.append(item)
+                # Resolve Sheet Name Dynamically
+                sheet_name = drive_client.get_first_sheet_title(spreadsheet_id) or "Sheet1"
+                safe_sheet_name = f"'{sheet_name}'" if " " in sheet_name else sheet_name
+                
+                # Read Data from Sheet
+                try:
+                    raw_values = drive_client.read_sheet_data(spreadsheet_id, f"{safe_sheet_name}!A:Z")
                     
-                    # Read Timestamps from AA1
-                    ts_values = drive_client.read_sheet_data(spreadsheet_id, "Sheet1!AA1")
-                    timestamps = {}
-                    if ts_values and len(ts_values) > 0 and len(ts_values[0]) > 1:
-                        try:
-                            ts_json = ts_values[0][1] # METADATA_TIMESTAMPS, {json}
-                            timestamps = json.loads(ts_json)
-                        except:
-                            print("Error parsing timestamps JSON from Sheet")
-                    
-                    # Read Details Cache from Drive JSON
-                    details = {}
-                    details_filename = f"DETAILS_CACHE_{year}.json"
-                    details_file_id = drive_client.find_file_in_folder(year_folder_id, details_filename)
-                    if details_file_id:
-                         details = drive_client.read_json_file(details_file_id) or {}
-                         print(f"[OK] Loaded Details Cache: {len(details)} items")
+                    if raw_values and len(raw_values) > 1:
+                        headers = raw_values[0]
+                        data = []
+                        for row in raw_values[1:]:
+                            if not row: continue
+                            item = {}
+                            for i, h in enumerate(headers):
+                                if i < len(row):
+                                    item[h] = row[i]
+                                else:
+                                    item[h] = ""
+                            data.append(item)
+                        
+                        # Read Timestamps from AA1
+                        ts_values = drive_client.read_sheet_data(spreadsheet_id, f"{safe_sheet_name}!AA1")
+                        timestamps = {}
+                        if ts_values and len(ts_values) > 0 and len(ts_values[0]) > 1:
+                            try:
+                                ts_json = ts_values[0][1] # METADATA_TIMESTAMPS, {json}
+                                timestamps = json.loads(ts_json)
+                            except:
+                                print("Error parsing timestamps JSON from Sheet")
+                        
+                        # Read Details Cache from Drive JSON
+                        details = {}
+                        details_filename = f"DETAILS_CACHE_{year}.json"
+                        details_file_id = drive_client.find_file_in_folder(year_folder_id, details_filename)
+                        if details_file_id:
+                             details = drive_client.read_json_file(details_file_id) or {}
+                             print(f"[OK] Loaded Details Cache: {len(details)} items")
 
-                    # Save to local cache for faster access next time
-                    with open(get_cache_path(year), 'w', encoding='utf-8') as f:
-                        json.dump(data, f, ensure_ascii=False)
-                    with open(get_timestamps_path(year), 'w', encoding='utf-8') as f:
-                        json.dump(timestamps, f, ensure_ascii=False)
-                    if details:
-                        with open(get_details_cache_path(year), 'w', encoding='utf-8') as f:
-                            json.dump(details, f, ensure_ascii=False)
-                    
-                    print(f"[OK] Cache loaded from Sheets: {sheet_title}")
-                    return data, timestamps, details
+                        # Save to local cache for faster access next time
+                        with open(get_cache_path(year), 'w', encoding='utf-8') as f:
+                            json.dump(data, f, ensure_ascii=False)
+                        with open(get_timestamps_path(year), 'w', encoding='utf-8') as f:
+                            json.dump(timestamps, f, ensure_ascii=False)
+                        if details:
+                            with open(get_details_cache_path(year), 'w', encoding='utf-8') as f:
+                                json.dump(details, f, ensure_ascii=False)
+                        
+                        print(f"[OK] Cache loaded from Sheets: {sheet_title} ({sheet_name})")
+                        return data, timestamps, details
+                except Exception as e:
+                    print(f"Read Sheet Data Error: {e}")
+                    # Continue without cache if sheet read fails
         except Exception as e:
             print(f"Drive cache load error: {e}")
     
@@ -459,10 +474,6 @@ def load_all_contracts_data_local(root_path, year, progress_callback=None):
         updated_timestamps[c_path] = ts_str # Update current
         
         # Compare with cache (using Path as ID)
-        old_ts = updated_timestamps.get(c_path, '')
-        # Wait, I just overwrote it within updated_timestamps in line above.
-        # Logic error.
-        # Retrying logic:
         old_ts = cached_timestamps.get(c_path, '') if cached_timestamps else ''
         
         if old_ts != ts_str:

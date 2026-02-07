@@ -448,3 +448,21 @@ class GoogleDriveClient:
         except Exception as e:
             print(f"Upload File Error: {e}")
             return None
+
+    def get_spreadsheet_sheets(self, spreadsheet_id: str) -> List[dict]:
+        """Returns a list of sheets (properties) in the spreadsheet."""
+        if not self.sheets_service: return []
+        try:
+            metadata = self.sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+            return metadata.get('sheets', [])
+        except Exception as e:
+            print(f"Get Sheets Metadata Error: {e}")
+            return []
+
+    def get_first_sheet_title(self, spreadsheet_id: str) -> Optional[str]:
+        """Returns the title of the first sheet in the spreadsheet."""
+        sheets = self.get_spreadsheet_sheets(spreadsheet_id)
+        if sheets:
+            return sheets[0].get('properties', {}).get('title')
+        return None
+
